@@ -1,0 +1,6 @@
+{
+  "name": "RSSB LDC Phase II Typing & Efficiency Simulator",
+  "description": "Official 100-mark skill exam simulation for Rajasthan LDC Clerk Grade-II / Junior Assistant Phase II featuring DevLys 010 Remington Hindi typing, strict backspace rules, and MS Word 2013 efficiency test evaluator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
