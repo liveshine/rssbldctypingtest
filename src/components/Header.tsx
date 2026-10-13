@@ -1,5 +1,6 @@
 import React from 'react';
 import { Award, BookOpen, CheckCircle, FileText, Keyboard, Play, Library } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   currentTab: 'exam' | 'drills' | 'efficiency' | 'keyboard' | 'guidelines';
@@ -95,8 +96,9 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: 1 primary action */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Zone 3: Actions & PWA Install */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <PWAInstallButton />
           <button
             onClick={onStartFullExam}
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors whitespace-nowrap shadow-sm flex items-center gap-1.5"

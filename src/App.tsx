@@ -6,6 +6,7 @@ import { PassagesBankModal } from './components/PassagesBankModal';
 import { KeyboardVisualizer } from './components/KeyboardVisualizer';
 import { SpeedDrillArena } from './components/drills/SpeedDrillArena';
 import { EfficiencyLab } from './components/drills/EfficiencyLab';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 // Official Exam Flow screens
 import { LoginScreen } from './components/exam/LoginScreen';
@@ -384,6 +385,9 @@ export default function App() {
         onClose={() => setIsScorecardOpen(false)}
         onRestart={startNewExamSession}
       />
+
+      {/* Offline Status Connectivity Banner */}
+      <OfflineIndicator />
     </div>
   );
 }
