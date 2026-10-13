@@ -25,7 +25,7 @@ export interface KeyMapDef {
  * the Rajasthan Staff Selection Board (RSSB / RSMSSB) official specification.
  */
 export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }> = {
-  '`': { normal: '़', shift: '्र' },
+  '`': { normal: 'ृ', shift: '्' },
   '1': { normal: '१', shift: '!' },
   '2': { normal: '२', shift: '@' },
   '3': { normal: '३', shift: 'रु' },
@@ -35,12 +35,12 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
   '7': { normal: '७', shift: '&' },
   '8': { normal: '८', shift: "'" },
   '9': { normal: '९', shift: ';' },
-  '0': { normal: '०', shift: 'ऋ' },
-  '-': { normal: '.', shift: 'त्र' },
-  '=': { normal: 'त्र', shift: 'ृ' },
+  '0': { normal: '०', shift: 'द्ध' },
+  '-': { normal: '.', shift: 'ऋ' },
+  '=': { normal: 'त्र', shift: '़' },
 
   'q': { normal: 'ु', shift: 'फ' },
-  'w': { normal: 'ू', shift: 'ँ' },
+  'w': { normal: 'ू', shift: 'ॅ' },
   'e': { normal: 'म', shift: 'म्' },
   'r': { normal: 'त', shift: 'त्' },
   't': { normal: 'ज', shift: 'ज्' },
@@ -49,7 +49,7 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
   'i': { normal: 'प', shift: 'प्' },
   'o': { normal: 'व', shift: 'व्' },
   'p': { normal: 'च', shift: 'च्' },
-  '[': { normal: 'ख', shift: 'क्ष' },
+  '[': { normal: 'ख्', shift: 'क्ष्' },
   ']': { normal: ',', shift: 'द्व' },
   '\\': { normal: '?', shift: 'द्य' },
 
@@ -63,7 +63,7 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
   'k': { normal: 'ा', shift: 'ज्ञ' },
   'l': { normal: 'स', shift: 'स्' },
   ';': { normal: 'य', shift: 'रू' },
-  "'": { normal: 'श', shift: 'ष्' },
+  "'": { normal: 'श्', shift: 'ष्' },
 
   'z': { normal: '्र', shift: 'र्' },
   'x': { normal: 'ग', shift: 'ग्' },
@@ -73,8 +73,8 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
   'n': { normal: 'द', shift: 'छ' },
   'm': { normal: 'उ', shift: 'ड' },
   ',': { normal: 'ए', shift: 'ढ' },
-  '.': { normal: 'झ', shift: 'ण' },
-  '/': { normal: 'ध', shift: 'घ' },
+  '.': { normal: 'ण्', shift: 'झ' },
+  '/': { normal: 'ध्', shift: 'घ्' },
   ' ': { normal: ' ', shift: ' ' },
 };
 
@@ -83,7 +83,7 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
  * already-shifted symbols (e.g. e.key === '!' or e.key === 'Q')
  */
 export const SHIFTED_SYMBOL_MAP: Record<string, string> = {
-  '~': '्र',
+  '~': '्',
   '!': '!',
   '@': '@',
   '#': 'रु',
@@ -93,12 +93,12 @@ export const SHIFTED_SYMBOL_MAP: Record<string, string> = {
   '&': '&',
   '*': "'",
   '(': ';',
-  ')': 'ऋ',
-  '_': 'त्र',
-  '+': 'ृ',
+  ')': 'द्ध',
+  '_': 'ऋ',
+  '+': '़',
 
   'Q': 'फ',
-  'W': 'ँ',
+  'W': 'ॅ',
   'E': 'म्',
   'R': 'त्',
   'T': 'ज्',
@@ -107,7 +107,7 @@ export const SHIFTED_SYMBOL_MAP: Record<string, string> = {
   'I': 'प्',
   'O': 'व्',
   'P': 'च्',
-  '{': 'क्ष',
+  '{': 'क्ष्',
   '}': 'द्व',
   '|': 'द्य',
 
@@ -131,8 +131,8 @@ export const SHIFTED_SYMBOL_MAP: Record<string, string> = {
   'N': 'छ',
   'M': 'ड',
   '<': 'ढ',
-  '>': 'ण',
-  '?': 'घ',
+  '>': 'झ',
+  '?': 'घ्',
 };
 
 // Alt Code reference for special Hindi ligatures in DevLys 010
@@ -191,6 +191,120 @@ export function mapKeystrokeToHindi(key: string, isShift: boolean): string | nul
   }
 
   return null;
+}
+
+/**
+ * Intelligently combines Remington / DevLys 010 keystroke sequences into
+ * clean Devanagari characters:
+ * 1. Half-consonant + aa-matra 'k' (ा) -> Full consonant
+ *    e.g. ख् + ा -> ख, ण् + ा -> ण, ध् + ा -> ध, घ् + ा -> घ, थ् + ा -> थ, etc.
+ * 2. 'ि' (chhoti i) typed before consonant -> consonant + 'ि' (e.g. ि + क -> कि)
+ */
+export function combineDevLysSequence(previousText: string, nextChar: string): string {
+  if (!previousText) return nextChar;
+
+  // Rule 1: Half-letter + aa-matra 'ा' -> Full letter
+  if (nextChar === 'ा') {
+    // Vowel combination: अ + ा -> आ
+    if (previousText.endsWith('अ')) {
+      return previousText.slice(0, -1) + 'आ';
+    }
+
+    const HALF_TO_FULL: Record<string, string> = {
+      'ख्': 'ख',
+      'क्ष्': 'क्ष',
+      'ण्': 'ण',
+      'ध्': 'ध',
+      'घ्': 'घ',
+      'थ्': 'थ',
+      'भ्': 'भ',
+      'श्': 'श',
+      'ष्': 'ष',
+      'क्': 'क',
+      'ग्': 'ग',
+      'ब्': 'ब',
+      'म्': 'म',
+      'त्': 'त',
+      'ज्': 'ज',
+      'ल्': 'ल',
+      'न्': 'न',
+      'प्': 'प',
+      'व्': 'व',
+      'च्': 'च',
+      'स्': 'स',
+    };
+
+    for (const [half, full] of Object.entries(HALF_TO_FULL)) {
+      if (previousText.endsWith(half)) {
+        return previousText.slice(0, -half.length) + full;
+      }
+      // If candidate typed prefix ि before half-letter then added aa-matra (e.g. f ' k -> शि)
+      if (previousText.endsWith(half + 'ि')) {
+        return previousText.slice(0, -(half.length + 1)) + full + 'ि';
+      }
+    }
+  }
+
+  // Vowel combinations with matras
+  if (nextChar === 'े' && previousText.endsWith('आ')) {
+    return previousText.slice(0, -1) + 'ओ';
+  }
+  if (nextChar === 'ै' && previousText.endsWith('आ')) {
+    return previousText.slice(0, -1) + 'औ';
+  }
+  if (nextChar === 'े' && previousText.endsWith('ए')) {
+    return previousText.slice(0, -1) + 'ऐ';
+  }
+  if (nextChar === 'ू' && previousText.endsWith('उ')) {
+    return previousText.slice(0, -1) + 'ऊ';
+  }
+
+  // Rule 2: Standalone Chhoti i matra 'ि' typed before consonant
+  // Only reorder when 'ि' is standalone (NOT already attached to a preceding consonant)
+  if (previousText.endsWith('ि') && !/[\u0915-\u0939]ि$/.test(previousText)) {
+    const isConsonant = /^[\u0915-\u0939]/.test(nextChar);
+    if (isConsonant) {
+      return previousText.slice(0, -1) + nextChar + 'ि';
+    }
+  }
+
+  // Rule 3: Reph (र् / Shift+Z)
+  // Handles both mechanical typewriter order (consonant + Z -> र्म)
+  // and modern Remington Gail order (Z + consonant -> र्म)
+  // CRITICAL: If previous syllable already has an aa-matra ('ा') or full vowel (e.g. 'का', 'धा'),
+  // do NOT pull 'र्' into that syllable (which was reversing words like 'कार्य' to 'र्काय' or 'धार्मिक' to 'र्धामिक')!
+  if (nextChar === 'र्') {
+    if (previousText.endsWith('इ')) {
+      return previousText.slice(0, -1) + 'ई';
+    }
+    if (previousText.endsWith('द्ध')) {
+      return previousText.slice(0, -2) + 'र्द्ध';
+    }
+
+    // Only reorder if the trailing syllable is an immediate consonant or with short matra (ि, ी, ु, ू, े, ै)
+    // Do NOT reorder if trailing syllable ends with 'ा' (aa), 'ो', 'ौ', 'ं', 'ः'
+    const match = previousText.match(
+      /([\u0915-\u0939](?:[\u094d][\u0915-\u0939])*(?:[\u093f\u0940\u0941\u0942\u0947\u0948\u0901\u0902\u0903\u0943]?))$/
+    );
+    if (match) {
+      const cluster = match[1];
+      const prefix = previousText.slice(0, -cluster.length);
+      return prefix + 'र्' + cluster;
+    }
+  }
+
+  // If candidate typed 'र्' first, then typed consonant (Remington Gail order), seamlessly concatenate:
+  if (previousText.endsWith('र्') && /^[\u0915-\u0939]/.test(nextChar)) {
+    return previousText + nextChar;
+  }
+
+  // Rule 4: Paden Ra ('्र' / z)
+  // If candidate typed '्र' before consonant, reorder so consonant + '्र' (e.g. '्र' + 'क' -> 'क्र')
+  if (previousText.endsWith('्र') && /^[\u0915-\u0939]/.test(nextChar)) {
+    return previousText.slice(0, -1) + nextChar + '्र';
+  }
+
+  return previousText + nextChar;
 }
 
 /**
@@ -259,8 +373,21 @@ export function calculateSpeedTestStats(
   let correctCount = 0;
   let incorrectCount = 0;
 
+  const areWordsEquivalent = (typed: string, target: string): boolean => {
+    if (typed === target) return true;
+    // Normalize hyphen and dot variants common in DevLys 010 (where '-' key outputs '.')
+    const normTyped = typed.replace(/[\.\-–—]/g, '-').replace(/[\u093c]/g, '');
+    const normTarget = target.replace(/[\.\-–—]/g, '-').replace(/[\u093c]/g, '');
+    if (normTyped === normTarget) return true;
+    // Strip trailing punctuation if candidate omitted or included purnaviram / fullstop
+    const stripPunct = (s: string) => s.replace(/[।\.,;:\-–—\?!'"]/g, '');
+    const sTyped = stripPunct(typed);
+    const sTarget = stripPunct(target);
+    return sTyped.length > 0 && sTyped === sTarget;
+  };
+
   for (let i = 0; i < typedCount; i++) {
-    if (i < totalWordsTarget && typedWords[i] === targetWords[i]) {
+    if (i < totalWordsTarget && areWordsEquivalent(typedWords[i], targetWords[i])) {
       correctCount++;
     } else {
       incorrectCount++;

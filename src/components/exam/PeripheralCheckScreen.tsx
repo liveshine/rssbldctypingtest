@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KeyboardVisualizer } from '../KeyboardVisualizer';
-import { mapKeystrokeToHindi } from '../../utils/remingtonEngine';
+import { mapKeystrokeToHindi, combineDevLysSequence } from '../../utils/remingtonEngine';
 import { Clock, Eye, EyeOff, FastForward } from 'lucide-react';
 
 interface PeripheralCheckScreenProps {
@@ -38,12 +38,14 @@ export const PeripheralCheckScreen: React.FC<PeripheralCheckScreenProps> = ({ on
 
     if (activeLang === 'hindi') {
       if (e.key === 'Backspace') {
-        return; // standard backspace allowed in practice
+        e.preventDefault();
+        setTypedText((prev) => (prev.length <= 1 ? '' : prev.slice(0, -1)));
+        return;
       }
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         const hindiChar = mapKeystrokeToHindi(e.key, e.shiftKey) || e.key;
-        setTypedText((prev) => prev + hindiChar);
+        setTypedText((prev) => combineDevLysSequence(prev, hindiChar));
       }
     }
   };

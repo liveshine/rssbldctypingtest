@@ -50,7 +50,7 @@ export const EfficiencyConfirmScreen: React.FC<EfficiencyConfirmScreenProps> = (
   };
 
   return (
-    <div className="w-full max-w-[1440px] mx-auto my-2 font-sans select-none">
+    <div className="w-full max-w-[1440px] mx-auto my-2 font-sans select-text">
       {/* Top Title matching Screenshot 2026-10-12 9.41.38 PM.png */}
       <div className="text-center py-2">
         <h1 className="text-2xl md:text-3xl font-serif font-bold text-slate-800 tracking-wide">

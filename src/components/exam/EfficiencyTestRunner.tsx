@@ -264,7 +264,7 @@ export const EfficiencyTestRunner: React.FC<EfficiencyTestRunnerProps> = ({
     .toFixed(2);
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto my-2 font-sans select-none">
+    <div className="w-full max-w-[1600px] mx-auto my-2 font-sans select-text">
       {/* Official Top Institutional Header matching Screenshots */}
       <div className="bg-slate-100 border-2 border-slate-300 rounded-t-lg px-6 py-2.5 flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
         {/* Left: Candidate Identification */}

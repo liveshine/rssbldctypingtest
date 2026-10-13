@@ -46,7 +46,7 @@ export const PreviewAndConfirmationScreen: React.FC<PreviewAndConfirmationScreen
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto my-4 font-sans select-none">
+    <div className="w-full max-w-5xl mx-auto my-4 font-sans select-text">
       {/* Top Details & Preview Header matching Screenshot 4 */}
       <div className="bg-white border-2 border-slate-300 p-6 shadow-md rounded mb-4">
         <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4 text-xs text-slate-700">

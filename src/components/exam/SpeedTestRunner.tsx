@@ -3,6 +3,7 @@ import { SpeedTestResult, CandidateInfo } from '../../types/exam';
 import {
   calculateSpeedTestStats,
   mapKeystrokeToHindi,
+  combineDevLysSequence,
   tokenizeWords,
 } from '../../utils/remingtonEngine';
 import { KeyboardVisualizer } from '../KeyboardVisualizer';
@@ -146,17 +147,14 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
     onFinishTest(result);
   };
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     setActiveKey(e.key);
     setIsShiftActive(e.shiftKey);
 
-    // Prevent prohibited shortcuts
+    // Allow standard text selection shortcuts (Ctrl+A, Ctrl+C)
+    // Only prevent paste into the typing test box
     if (e.ctrlKey || e.metaKey) {
-      if (['c', 'v', 'a', 'x', 'z', 'y'].includes(e.key.toLowerCase())) {
+      if (['v'].includes(e.key.toLowerCase())) {
         e.preventDefault();
         return;
       }
@@ -174,12 +172,19 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
       return;
     }
 
-    // STRICT RSSB BACKSPACE RULE:
+    // STRICT RSSB BACKSPACE RULE (Rule 10):
     // Backspace works within the current word input box.
-    // If currentWordInput is empty, Backspace is locked!
+    // Once currentWordInput is empty (or after Space/Enter submits word), Backspace is locked!
     if (e.key === 'Backspace') {
       if (currentWordInput.length === 0) {
         e.preventDefault();
+        return;
+      }
+      if (paperType === 'hindi_speed') {
+        e.preventDefault();
+        setCurrentRawKeystrokes((prev) => prev.slice(0, -1));
+        setCurrentWordInput((prev) => (prev.length <= 1 ? '' : prev.slice(0, -1)));
+        return;
       } else {
         setCurrentRawKeystrokes((prev) => prev.slice(0, -1));
       }
@@ -192,7 +197,7 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
         e.preventDefault();
         setCurrentRawKeystrokes((prev) => prev + e.key);
         const mappedChar = mapKeystrokeToHindi(e.key, e.shiftKey) || e.key;
-        setCurrentWordInput((prev) => prev + mappedChar);
+        setCurrentWordInput((prev) => combineDevLysSequence(prev, mappedChar));
       }
     }
   };
@@ -209,8 +214,7 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
 
   return (
     <div
-      onContextMenu={handleContextMenu}
-      className="w-full max-w-7xl mx-auto my-2 bg-white rounded-lg shadow-xl border-2 border-slate-300 overflow-hidden font-sans select-none"
+      className="w-full max-w-7xl mx-auto my-2 bg-white rounded-lg shadow-xl border-2 border-slate-300 overflow-hidden font-sans select-text"
     >
       {/* Official Top Institutional Header matching Screenshot 3 & 5 */}
       <div className="bg-slate-100 border-b-2 border-slate-300 px-6 py-2.5 flex flex-col md:flex-row items-center justify-between gap-3">
