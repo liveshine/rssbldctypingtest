@@ -1,162 +1,252 @@
-import React, { useState } from 'react';
-import { ALT_CODES_REFERENCE, mapKeystrokeToHindi, combineDevLysSequence } from '../utils/remingtonEngine';
-import { Search, Info, Keyboard as KeyboardIcon, Sparkles, RotateCcw, Printer, Eye } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import {
+  mapKeystrokeToHindi,
+  combineDevLysSequence,
+  ALT_CODES_REFERENCE,
+  ALT_CODES_MAP,
+  decodeAltCode,
+} from '../utils/remingtonEngine';
+import { Printer, RotateCcw, Sparkles, Hash, Check } from 'lucide-react';
 
 interface KeyboardVisualizerProps {
   activeKey?: string;
   isShiftActive?: boolean;
 }
 
-interface KeyData {
+export interface KeyItem {
   code: string;
-  engKey: string;
-  normalHindi: string; // Bottom character (Normal / बिना Shift)
-  shiftHindi: string;  // Top character (Shift / शीर्ष वर्ण)
+  engLower: string;
+  engUpper: string;
+  hindiNormal: string;
+  hindiShift: string;
   width?: string;
   isSpecial?: boolean;
-  desc?: string;
+  specialLabel?: string;
+  specialIcon?: React.ReactNode;
 }
 
 /**
- * 100% Exact Key Layout from RSMSSB Official Circular:
- * "Standard की–बोर्ड एवं DevLys 010 फॉन्ट का प्रयोग किया जायेगा।"
- * "Hindi Keyboard"
+ * 100% Exact 1:1 Key Data matching official Kruti Dev 010 / DevLys 010
+ * "KRUTIDEV KEYBOARD (HINDI FONT)" Reference Poster
  */
-export const OFFICIAL_KEYBOARD_ROWS: KeyData[][] = [
-  // ROW 1: Number Row (` to Backspace)
+export const KRUTIDEV_ROWS: KeyItem[][] = [
+  // ROW 1: Number Row
   [
-    { code: 'Backquote', engKey: '`', normalHindi: 'ृ', shiftHindi: '्', desc: 'ऋ की मात्रा (ृ) / हलन्त (्)' },
-    { code: 'Digit1', engKey: '1', normalHindi: '१', shiftHindi: '!', desc: 'संख्या १ / !' },
-    { code: 'Digit2', engKey: '2', normalHindi: '२', shiftHindi: '@', desc: 'संख्या २ / @' },
-    { code: 'Digit3', engKey: '3', normalHindi: '३', shiftHindi: 'रु', desc: 'संख्या ३ / रु' },
-    { code: 'Digit4', engKey: '4', normalHindi: '४', shiftHindi: '$', desc: 'संख्या ४ / $' },
-    { code: 'Digit5', engKey: '5', normalHindi: '५', shiftHindi: ':', desc: 'संख्या ५ / :' },
-    { code: 'Digit6', engKey: '6', normalHindi: '६', shiftHindi: '‘', desc: 'संख्या ६ / ‘' },
-    { code: 'Digit7', engKey: '7', normalHindi: '७', shiftHindi: '&', desc: 'संख्या ७ / &' },
-    { code: 'Digit8', engKey: '8', normalHindi: '८', shiftHindi: "'", desc: "संख्या ८ / '" },
-    { code: 'Digit9', engKey: '9', normalHindi: '९', shiftHindi: ';', desc: 'संख्या ९ / ;' },
-    { code: 'Digit0', engKey: '0', normalHindi: '०', shiftHindi: 'द्ध', desc: 'संख्या ० / संयुक्त वर्ण द्ध' },
-    { code: 'Minus', engKey: '-', normalHindi: '.', shiftHindi: 'ऋ', desc: 'बिन्दु (.) अथवा योजक (-) / स्वर ऋषि (ऋ)' },
-    { code: 'Equal', engKey: '=', normalHindi: 'त्र', shiftHindi: '़', desc: 'संयुक्त वर्ण त्र / नुक्ता (़)' },
+    { code: 'Backquote', engLower: '`', engUpper: '~', hindiNormal: '‘', hindiShift: '~' },
+    { code: 'Digit1', engLower: '1', engUpper: '!', hindiNormal: '१', hindiShift: '!' },
+    { code: 'Digit2', engLower: '2', engUpper: '@', hindiNormal: '२', hindiShift: '/' },
+    { code: 'Digit3', engLower: '3', engUpper: '#', hindiNormal: '३', hindiShift: 'रु' },
+    { code: 'Digit4', engLower: '4', engUpper: '$', hindiNormal: '४', hindiShift: '+' },
+    { code: 'Digit5', engLower: '5', engUpper: '%', hindiNormal: '५', hindiShift: ':' },
+    { code: 'Digit6', engLower: '6', engUpper: '^', hindiNormal: '६', hindiShift: '‘' },
+    { code: 'Digit7', engLower: '7', engUpper: '&', hindiNormal: '७', hindiShift: '-' },
+    { code: 'Digit8', engLower: '8', engUpper: '*', hindiNormal: '८', hindiShift: "'" },
+    { code: 'Digit9', engLower: '9', engUpper: '(', hindiNormal: '९', hindiShift: ';' },
+    { code: 'Digit0', engLower: '0', engUpper: ')', hindiNormal: '०', hindiShift: 'द्ध' },
+    { code: 'Minus', engLower: '-', engUpper: '_', hindiNormal: '.', hindiShift: 'ऋ' },
+    { code: 'Equal', engLower: '=', engUpper: '+', hindiNormal: 'त्र', hindiShift: '़' },
     {
       code: 'Backspace',
-      engKey: 'Backspace',
-      normalHindi: 'Backspace',
-      shiftHindi: '⟵ ⟶',
-      width: 'w-24 sm:w-28',
+      engLower: '',
+      engUpper: '',
+      hindiNormal: '',
+      hindiShift: '',
+      width: 'w-24 sm:w-26 md:w-28',
       isSpecial: true,
-      desc: 'Backspace (पिछला वर्ण हटाएं)',
+      specialLabel: 'Backspace',
+      specialIcon: (
+        <span className="text-base leading-none font-bold tracking-tighter">⟵</span>
+      ),
     },
   ],
 
-  // ROW 2: QWERTY Row (Tab to \)
+  // ROW 2: QWERTY Row
   [
     {
       code: 'Tab',
-      engKey: 'Tab',
-      normalHindi: 'Tab',
-      shiftHindi: '⟵ ⟶',
-      width: 'w-16 sm:w-20',
+      engLower: '',
+      engUpper: '',
+      hindiNormal: '',
+      hindiShift: '',
+      width: 'w-16 sm:w-18 md:w-20',
       isSpecial: true,
-      desc: 'Tab कुंजी',
+      specialLabel: 'Tab',
+      specialIcon: (
+        <span className="text-xs leading-none tracking-tighter flex items-center justify-center gap-1 font-mono">
+          <span>|⟵</span>
+          <span>⟶|</span>
+        </span>
+      ),
     },
-    { code: 'KeyQ', engKey: 'q', normalHindi: 'ु', shiftHindi: 'फ', desc: 'ह्रस्व उ की मात्रा (ु) / फ' },
-    { code: 'KeyW', engKey: 'w', normalHindi: 'ू', shiftHindi: 'ॅ', desc: 'दीर्घ ऊ की मात्रा (ू) / अर्धचन्द्र मात्रा (ॅ)' },
-    { code: 'KeyE', engKey: 'e', normalHindi: 'म', shiftHindi: 'म्', desc: 'पूर्ण म / आधा म्' },
-    { code: 'KeyR', engKey: 'r', normalHindi: 'त', shiftHindi: 'त्', desc: 'पूर्ण त / आधा त्' },
-    { code: 'KeyT', engKey: 't', normalHindi: 'ज', shiftHindi: 'ज्', desc: 'पूर्ण ज / आधा ज्' },
-    { code: 'KeyY', engKey: 'y', normalHindi: 'ल', shiftHindi: 'ल्', desc: 'पूर्ण ल / आधा ल्' },
-    { code: 'KeyU', engKey: 'u', normalHindi: 'न', shiftHindi: 'न्', desc: 'पूर्ण न / आधा न्' },
-    { code: 'KeyI', engKey: 'i', normalHindi: 'प', shiftHindi: 'प्', desc: 'पूर्ण प / आधा प्' },
-    { code: 'KeyO', engKey: 'o', normalHindi: 'व', shiftHindi: 'व्', desc: 'पूर्ण व / आधा व्' },
-    { code: 'KeyP', engKey: 'p', normalHindi: 'च', shiftHindi: 'च्', desc: 'पूर्ण च / आधा च्' },
-    { code: 'BracketLeft', engKey: '[', normalHindi: 'ख्', shiftHindi: 'क्ष्', desc: 'आधा ख् ([k से ख) / आधा क्ष् ({k से क्ष)' },
-    { code: 'BracketRight', engKey: ']', normalHindi: ',', shiftHindi: 'द्व', desc: 'अल्पविराम (,) / संयुक्त वर्ण द्व' },
+    { code: 'KeyQ', engLower: 'q', engUpper: 'Q', hindiNormal: 'ु', hindiShift: 'फ' },
+    { code: 'KeyW', engLower: 'w', engUpper: 'W', hindiNormal: 'ू', hindiShift: 'ॅ' },
+    { code: 'KeyE', engLower: 'e', engUpper: 'E', hindiNormal: 'म', hindiShift: 'म्' },
+    { code: 'KeyR', engLower: 'r', engUpper: 'R', hindiNormal: 'त', hindiShift: 'त्' },
+    { code: 'KeyT', engLower: 't', engUpper: 'T', hindiNormal: 'ज', hindiShift: 'ज्' },
+    { code: 'KeyY', engLower: 'y', engUpper: 'Y', hindiNormal: 'ल', hindiShift: 'ल्' },
+    { code: 'KeyU', engLower: 'u', engUpper: 'U', hindiNormal: 'न', hindiShift: 'न्' },
+    { code: 'KeyI', engLower: 'i', engUpper: 'I', hindiNormal: 'प', hindiShift: 'प्' },
+    { code: 'KeyO', engLower: 'o', engUpper: 'O', hindiNormal: 'व', hindiShift: 'व्' },
+    { code: 'KeyP', engLower: 'p', engUpper: 'P', hindiNormal: 'च', hindiShift: 'च्' },
+    { code: 'BracketLeft', engLower: '[', engUpper: '{', hindiNormal: 'ख्', hindiShift: 'क्ष्' },
+    { code: 'BracketRight', engLower: ']', engUpper: '}', hindiNormal: ',', hindiShift: 'द्व' },
     {
       code: 'Backslash',
-      engKey: '\\',
-      normalHindi: '?',
-      shiftHindi: 'द्य',
-      width: 'w-14 sm:w-16',
-      desc: 'प्रश्नवाचक (?) / संयुक्त वर्ण द्य',
+      engLower: '\\',
+      engUpper: '|',
+      hindiNormal: '?',
+      hindiShift: 'द्य',
+      width: 'w-13 sm:w-14 md:w-16',
     },
   ],
 
-  // ROW 3: Home Row (Caps Lock to Enter)
+  // ROW 3: Home Row
   [
     {
       code: 'CapsLock',
-      engKey: 'Caps Lock',
-      normalHindi: 'Caps Lock',
-      shiftHindi: '',
-      width: 'w-20 sm:w-24',
+      engLower: '',
+      engUpper: '',
+      hindiNormal: '',
+      hindiShift: '',
+      width: 'w-20 sm:w-22 md:w-24',
       isSpecial: true,
-      desc: 'Caps Lock कुंजी',
+      specialLabel: 'Caps Lock',
     },
-    { code: 'KeyA', engKey: 'a', normalHindi: 'ं', shiftHindi: '।', desc: 'अनुस्वार बिन्दु (ं) / पूर्णविराम (।)' },
-    { code: 'KeyS', engKey: 's', normalHindi: 'े', shiftHindi: 'ै', desc: 'ए की मात्रा (े) / ऐ की मात्रा (ै)' },
-    { code: 'KeyD', engKey: 'd', normalHindi: 'क', shiftHindi: 'क्', desc: 'पूर्ण क / आधा क्' },
-    { code: 'KeyF', engKey: 'f', normalHindi: 'ि', shiftHindi: 'थ्', desc: 'ह्रस्व इ की मात्रा (ि) / आधा थ्' },
-    { code: 'KeyG', engKey: 'g', normalHindi: 'ह', shiftHindi: 'ळ', desc: 'पूर्ण ह / मूर्धन्य ळ' },
-    { code: 'KeyH', engKey: 'h', normalHindi: 'ी', shiftHindi: 'भ', desc: 'दीर्घ ई की मात्रा (ी) / पूर्ण भ' },
-    { code: 'KeyJ', engKey: 'j', normalHindi: 'र', shiftHindi: 'श्र', desc: 'पूर्ण र / संयुक्त वर्ण श्र' },
-    { code: 'KeyK', engKey: 'k', normalHindi: 'ा', shiftHindi: 'ज्ञ', desc: 'आ की मात्रा (ा) / संयुक्त वर्ण ज्ञ' },
-    { code: 'KeyL', engKey: 'l', normalHindi: 'स', shiftHindi: 'स्', desc: 'पूर्ण स / आधा स् (Lk से स)' },
-    { code: 'Semicolon', engKey: ';', normalHindi: 'य', shiftHindi: 'रू', desc: 'पूर्ण य / दीर्घ रू' },
-    { code: 'Quote', engKey: "'", normalHindi: 'श्', shiftHindi: 'ष्', desc: "तालव्य आधा श् ('k से श) / मूर्धन्य आधा ष् (\"k से ष)" },
+    { code: 'KeyA', engLower: 'a', engUpper: 'A', hindiNormal: 'ं', hindiShift: '।' },
+    { code: 'KeyS', engLower: 's', engUpper: 'S', hindiNormal: 'े', hindiShift: 'ै' },
+    { code: 'KeyD', engLower: 'd', engUpper: 'D', hindiNormal: 'क', hindiShift: 'क्' },
+    { code: 'KeyF', engLower: 'f', engUpper: 'F', hindiNormal: 'ि', hindiShift: 'थ्' },
+    { code: 'KeyG', engLower: 'g', engUpper: 'G', hindiNormal: 'ह', hindiShift: 'ळ' },
+    { code: 'KeyH', engLower: 'h', engUpper: 'H', hindiNormal: 'ी', hindiShift: 'भ' },
+    { code: 'KeyJ', engLower: 'j', engUpper: 'J', hindiNormal: 'र', hindiShift: 'श्र' },
+    { code: 'KeyK', engLower: 'k', engUpper: 'K', hindiNormal: 'ा', hindiShift: 'ज्ञ' },
+    { code: 'KeyL', engLower: 'l', engUpper: 'L', hindiNormal: 'स', hindiShift: 'स्' },
+    { code: 'Semicolon', engLower: ';', engUpper: ':', hindiNormal: 'य', hindiShift: 'रू' },
+    { code: 'Quote', engLower: "'", engUpper: '"', hindiNormal: 'श्', hindiShift: 'ष्' },
     {
       code: 'Enter',
-      engKey: 'Enter',
-      normalHindi: 'Enter',
-      shiftHindi: '',
-      width: 'w-24 sm:w-28',
+      engLower: '',
+      engUpper: '',
+      hindiNormal: '',
+      hindiShift: '',
+      width: 'w-24 sm:w-26 md:w-28',
       isSpecial: true,
-      desc: 'Enter कुंजी',
+      specialLabel: 'Enter',
     },
   ],
 
-  // ROW 4: Shift Row (Shift to Shift)
+  // ROW 4: Shift Row
   [
     {
       code: 'ShiftLeft',
-      engKey: 'Shift',
-      normalHindi: 'Shift',
-      shiftHindi: '⇧',
-      width: 'w-24 sm:w-28',
+      engLower: '',
+      engUpper: '',
+      hindiNormal: '',
+      hindiShift: '',
+      width: 'w-24 sm:w-26 md:w-28',
       isSpecial: true,
-      desc: 'Shift कुंजी (बायाँ)',
+      specialLabel: 'Shift',
+      specialIcon: <span className="text-sm font-bold">⇧</span>,
     },
-    { code: 'KeyZ', engKey: 'z', normalHindi: '्र', shiftHindi: 'र्', desc: 'पदेन र (्र) / रेफ र (र्)' },
-    { code: 'KeyX', engKey: 'x', normalHindi: 'ग', shiftHindi: 'ग्', desc: 'पूर्ण ग / आधा ग्' },
-    { code: 'KeyC', engKey: 'c', normalHindi: 'ब', shiftHindi: 'ब्', desc: 'पूर्ण ब / आधा ब्' },
-    { code: 'KeyV', engKey: 'v', normalHindi: 'अ', shiftHindi: 'ट', desc: 'स्वर अ / मूर्धन्य ट' },
-    { code: 'KeyB', engKey: 'b', normalHindi: 'इ', shiftHindi: 'ठ', desc: 'स्वर इ / मूर्धन्य ठ' },
-    { code: 'KeyN', engKey: 'n', normalHindi: 'द', shiftHindi: 'छ', desc: 'पूर्ण द / स्पर्श वर्ण छ' },
-    { code: 'KeyM', engKey: 'm', normalHindi: 'उ', shiftHindi: 'ड', desc: 'स्वर उ / मूर्धन्य ड' },
-    { code: 'Comma', engKey: ',', normalHindi: 'ए', shiftHindi: 'ढ', desc: 'स्वर ए / मूर्धन्य ढ' },
-    { code: 'Period', engKey: '.', normalHindi: 'ण्', shiftHindi: 'झ', desc: 'आधा ण् (.k से ण) / वर्ण झ' },
-    { code: 'Slash', engKey: '/', normalHindi: 'ध्', shiftHindi: 'घ्', desc: 'आधा ध् (/k से ध) / आधा घ् (?k से घ)' },
+    // The exact standard Z Key: Top-left = र् (Reph), Bottom-left = ्र (Paden Ra)
+    { code: 'KeyZ', engLower: 'z', engUpper: 'Z', hindiNormal: '्र', hindiShift: 'र्' },
+    { code: 'KeyX', engLower: 'x', engUpper: 'X', hindiNormal: 'ग', hindiShift: 'ग्' },
+    { code: 'KeyC', engLower: 'c', engUpper: 'C', hindiNormal: 'ब', hindiShift: 'ब्' },
+    { code: 'KeyV', engLower: 'v', engUpper: 'V', hindiNormal: 'अ', hindiShift: 'ट' },
+    { code: 'KeyB', engLower: 'b', engUpper: 'B', hindiNormal: 'इ', hindiShift: 'ठ' },
+    { code: 'KeyN', engLower: 'n', engUpper: 'N', hindiNormal: 'द', hindiShift: 'छ' },
+    { code: 'KeyM', engLower: 'm', engUpper: 'M', hindiNormal: 'उ', hindiShift: 'ड' },
+    { code: 'Comma', engLower: ',', engUpper: '<', hindiNormal: 'ए', hindiShift: 'ढ' },
+    { code: 'Period', engLower: '.', engUpper: '>', hindiNormal: 'ण्', hindiShift: 'झ' },
+    { code: 'Slash', engLower: '/', engUpper: '?', hindiNormal: 'ध्', hindiShift: 'घ्' },
     {
       code: 'ShiftRight',
-      engKey: 'Shift',
-      normalHindi: 'Shift',
-      shiftHindi: '⇧',
-      width: 'w-24 sm:w-28',
+      engLower: '',
+      engUpper: '',
+      hindiNormal: '',
+      hindiShift: '',
+      width: 'w-24 sm:w-26 md:w-28',
       isSpecial: true,
-      desc: 'Shift कुंजी (दायाँ)',
+      specialLabel: 'Shift',
+      specialIcon: <span className="text-sm font-bold">⇧</span>,
     },
   ],
 
-  // ROW 5: Bottom Modifier Row (Ctrl, win, Alt, Space, Alt, win, Menu, Ctrl)
+  // ROW 5: Bottom Modifier Row
   [
-    { code: 'ControlLeft', engKey: 'Ctrl', normalHindi: 'Ctrl', shiftHindi: '', width: 'w-14 sm:w-16', isSpecial: true, desc: 'Control कुंजी' },
-    { code: 'MetaLeft', engKey: 'win', normalHindi: 'win', shiftHindi: '', width: 'w-12 sm:w-14', isSpecial: true, desc: 'Windows कुंजी' },
-    { code: 'AltLeft', engKey: 'Alt', normalHindi: 'Alt', shiftHindi: '', width: 'w-12 sm:w-14', isSpecial: true, desc: 'Alt कुंजी' },
-    { code: 'Space', engKey: 'Space', normalHindi: '', shiftHindi: '', width: 'flex-1 min-w-[200px]', isSpecial: true, desc: 'Spacebar (स्पेस बार)' },
-    { code: 'AltRight', engKey: 'Alt', normalHindi: 'Alt', shiftHindi: '', width: 'w-12 sm:w-14', isSpecial: true, desc: 'Alt कुंजी' },
-    { code: 'MetaRight', engKey: 'win', normalHindi: 'win', shiftHindi: '', width: 'w-12 sm:w-14', isSpecial: true, desc: 'Windows कुंजी' },
-    { code: 'ContextMenu', engKey: 'Menu', normalHindi: '📄', shiftHindi: '', width: 'w-12 sm:w-14', isSpecial: true, desc: 'Menu कुंजी' },
-    { code: 'ControlRight', engKey: 'Ctrl', normalHindi: 'Ctrl', shiftHindi: '', width: 'w-14 sm:w-16', isSpecial: true, desc: 'Control कुंजी' },
+    { code: 'ControlLeft', engLower: 'Ctrl', engUpper: 'Ctrl', hindiNormal: '', hindiShift: '', width: 'w-14 sm:w-16', isSpecial: true, specialLabel: 'Ctrl' },
+    { code: 'MetaLeft', engLower: 'win', engUpper: 'win', hindiNormal: '', hindiShift: '', width: 'w-14 sm:w-16', isSpecial: true, specialLabel: 'win' },
+    { code: 'AltLeft', engLower: 'Alt', engUpper: 'Alt', hindiNormal: '', hindiShift: '', width: 'w-14 sm:w-16', isSpecial: true, specialLabel: 'Alt' },
+    { code: 'Space', engLower: 'space', engUpper: 'space', hindiNormal: '', hindiShift: '', width: 'flex-1 min-w-[200px]', isSpecial: true, specialLabel: 'space' },
+    { code: 'AltRight', engLower: 'Alt', engUpper: 'Alt', hindiNormal: '', hindiShift: '', width: 'w-14 sm:w-16', isSpecial: true, specialLabel: 'Alt' },
+    { code: 'MetaRight', engLower: 'win', engUpper: 'win', hindiNormal: '', hindiShift: '', width: 'w-14 sm:w-16', isSpecial: true, specialLabel: 'win' },
+    {
+      code: 'ContextMenu',
+      engLower: '',
+      engUpper: '',
+      hindiNormal: '',
+      hindiShift: '',
+      width: 'w-14 sm:w-16',
+      isSpecial: true,
+      specialIcon: (
+        <div className="w-5 h-5 border border-slate-700 flex flex-col justify-center items-center gap-0.5 p-0.5 rounded-xs">
+          <div className="w-3.5 h-[1.5px] bg-slate-700" />
+          <div className="w-3.5 h-[1.5px] bg-slate-700" />
+          <div className="w-2.5 h-[1.5px] bg-slate-700 self-start ml-0.5" />
+        </div>
+      ),
+    },
+    { code: 'ControlRight', engLower: 'Ctrl', engUpper: 'Ctrl', hindiNormal: '', hindiShift: '', width: 'w-14 sm:w-16', isSpecial: true, specialLabel: 'Ctrl' },
+  ],
+];
+
+// Exact Alt Code Table matching image 7891dd73d03827530134e15ab51729ed.jpg
+export const EXACT_IMAGE_ALT_CODES = [
+  // Column 1
+  [
+    'ALT + 0161 = ॅ',
+    'ALT + 0165 = ञ',
+    'ALT + 0170 = ^',
+    'ALT + 0182 = फ्',
+    'ALT + 0183 = ऽ',
+    'ALT + 0184 = ृ',
+    'ALT + 0187 = ÷',
+    'ALT + 0188 = (',
+    'ALT + 0189 = )',
+  ],
+  // Column 2
+  [
+    'ALT + 0190 = =',
+    'ALT + 00191 = [',
+    'ALT + 0192 = ]',
+    'ALT + 0197 = ॐ',
+    'ALT + 0204 = द्ध',
+    'ALT + 0205 = द्',
+    'ALT + 0206 = द्व',
+    'ALT + 0207 = ड्ढ',
+    'ALT + 02012 = ङ्ग',
+  ],
+  // Column 3
+  [
+    'ALT + 0216 = क्र',
+    'ALT + 0217 = त्र',
+    'ALT + 0218 = =',
+    'ALT + 0220 = ्र',
+    'ALT + 0221 = फ्र',
+    'ALT + 0222 = ़',
+    'ALT + 0223 = ·',
+    'ALT + 0224 = ष्ठ',
+    'ALT + 0225 = ह्य',
+    'ALT + 0226 = हृ',
+  ],
+  // Column 4
+  [
+    'ALT + 0227 = ह्म',
+    'ALT + 0228 = क्त',
+    'ALT + 0229 = ०',
+    'ALT + 0233 = श्र',
+    'ALT + 0243 = स्त्र',
+    'ALT + 0216 = क्र',
   ],
 ];
 
@@ -164,15 +254,13 @@ export const KeyboardVisualizer: React.FC<KeyboardVisualizerProps> = ({
   activeKey: propActiveKey,
   isShiftActive: propShiftActive = false,
 }) => {
-  const [altSearch, setAltSearch] = useState('');
-  const [manualShift, setManualShift] = useState(false);
-  const [selectedKeyInfo, setSelectedKeyInfo] = useState<KeyData | null>(null);
-  const [showQwertyHints, setShowQwertyHints] = useState(true);
-
-  // Live Test Typing Box state
   const [testInput, setTestInput] = useState('');
   const [testActiveKey, setTestActiveKey] = useState('');
   const [testShiftActive, setTestShiftActive] = useState(false);
+  const [manualShift, setManualShift] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const altBufferRef = useRef('');
 
   const effectiveShift = propShiftActive || manualShift || testShiftActive;
   const currentActive = propActiveKey || testActiveKey;
@@ -180,6 +268,20 @@ export const KeyboardVisualizer: React.FC<KeyboardVisualizerProps> = ({
   const handleTestKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     setTestActiveKey(e.key);
     setTestShiftActive(e.shiftKey);
+
+    // Alt Code Detection: when Alt key is held and user enters digits
+    if (e.altKey || e.key === 'Alt') {
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        altBufferRef.current += e.key;
+        const decoded = ALT_CODES_MAP[altBufferRef.current];
+        if (decoded && altBufferRef.current.length >= 4) {
+          setTestInput((prev) => combineDevLysSequence(prev, decoded));
+          altBufferRef.current = '';
+        }
+        return;
+      }
+    }
 
     if (e.key === 'Backspace') {
       e.preventDefault();
@@ -202,270 +304,264 @@ export const KeyboardVisualizer: React.FC<KeyboardVisualizerProps> = ({
 
   const handleTestKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
     setTestShiftActive(e.shiftKey);
+
+    // If Alt was released and we have accumulated digits in buffer
+    if (e.key === 'Alt') {
+      if (altBufferRef.current) {
+        const decoded = ALT_CODES_MAP[altBufferRef.current];
+        if (decoded) {
+          setTestInput((prev) => combineDevLysSequence(prev, decoded));
+        }
+        altBufferRef.current = '';
+      }
+    }
   };
 
-  const filteredAltCodes = ALT_CODES_REFERENCE.filter(
-    (item) =>
-      item.code.toLowerCase().includes(altSearch.toLowerCase()) ||
-      item.char.includes(altSearch) ||
-      item.description.toLowerCase().includes(altSearch.toLowerCase())
-  );
+  const handleInsertAltChar = (char: string, code: string) => {
+    setTestInput((prev) => combineDevLysSequence(prev, char));
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 1500);
+  };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto font-sans select-text">
-      {/* Official Header Strip matching Screenshot 2026-10-12 10.07.01 PM.png exactly */}
-      <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-300 shadow-sm text-center space-y-2">
-        <h1 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 tracking-wide">
-          Standard की–बोर्ड एवं DevLys 010 फॉन्ट का प्रयोग किया जायेगा।
-        </h1>
-        <h2 className="text-lg sm:text-xl font-serif font-semibold text-slate-800 tracking-wider">
-          Hindi Keyboard
-        </h2>
-        <p className="text-xs text-slate-500 font-sans">
-          राजस्थान कर्मचारी चयन बोर्ड (RSMSSB) कनिष्ठ सहायक / लिपिक ग्रेड-II आधिकारिक परीक्षा लेआउट
-        </p>
-
-        {/* Action Controls & Legend */}
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <button
-            onClick={() => setManualShift(!manualShift)}
-            className={`px-4 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm ${
-              effectiveShift
-                ? 'bg-blue-700 text-white border-blue-800'
-                : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
-            }`}
-          >
-            {effectiveShift ? '⇧ Shift ON (शीर्ष वर्ण सक्रिय)' : '⇧ Shift OFF (निचले वर्ण सक्रिय)'}
-          </button>
-
-          <button
-            onClick={() => setShowQwertyHints(!showQwertyHints)}
-            className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-          >
-            <Eye className="w-3.5 h-3.5 text-blue-600" />
-            <span>{showQwertyHints ? 'QWERTY कुंजियाँ छिपाएँ' : 'QWERTY कुंजियाँ दिखाएँ'}</span>
-          </button>
-
-          <button
-            onClick={() => window.print()}
-            className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-          >
-            <Printer className="w-3.5 h-3.5 text-slate-600" />
-            <span>प्रिंट / PDF सेव करें</span>
-          </button>
+    <div className="w-full max-w-5xl mx-auto font-sans select-text py-4 space-y-6">
+      {/* 
+        POSTER CONTAINER: Pure White Card matching image 7891dd73d03827530134e15ab51729ed.jpg 
+        Header in Red, Keyboard in clean rounded chassis, and 4-column Alt table below.
+      */}
+      <div className="bg-white p-6 sm:p-8 md:p-10 rounded-2xl border border-slate-300 shadow-md">
+        {/* Title exactly as in image: KRUTIDEV KEYBOARD (HINDI FONT) */}
+        <div className="text-center mb-6">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-[#B91C1C] tracking-wide uppercase font-sans">
+            KRUTIDEV KEYBOARD (HINDI FONT)
+          </h1>
+          <p className="text-xs text-slate-500 font-mono mt-1">
+            Standard Remington GAIL (DevLys 010 / Kruti Dev 010) RSMSSB LDC Specification
+          </p>
         </div>
-      </div>
 
-      {/* Authentic Keyboard Chassis matching Screenshot 2026-10-12 10.07.01 PM.png */}
-      <div className="bg-white p-3 sm:p-5 md:p-7 rounded-[32px] border-2 border-slate-700 shadow-xl overflow-x-auto">
-        <div className="min-w-[840px] space-y-2">
-          {OFFICIAL_KEYBOARD_ROWS.map((row, rIdx) => (
-            <div key={rIdx} className="flex gap-1.5 justify-center">
-              {row.map((k) => {
-                const isActive =
-                  currentActive &&
-                  (currentActive.toLowerCase() === k.engKey.toLowerCase() ||
-                    currentActive === k.code ||
-                    (k.code === 'Space' && (currentActive === ' ' || currentActive === 'Space')));
+        {/* Keyboard Chassis Outline */}
+        <div className="border border-slate-500 rounded-[24px] sm:rounded-[28px] p-2.5 sm:p-3.5 md:p-4 bg-white shadow-2xs overflow-x-auto">
+          <div className="min-w-[760px] space-y-2 select-none">
+            {KRUTIDEV_ROWS.map((row, rowIdx) => (
+              <div key={rowIdx} className="flex justify-between gap-1.5 sm:gap-2">
+                {row.map((k) => {
+                  const isSpecial = Boolean(k.isSpecial);
+                  const isShiftKey = k.code === 'ShiftLeft' || k.code === 'ShiftRight';
+                  const isSpaceKey = k.code === 'Space';
 
-                const isSpecial = Boolean(k.isSpecial);
-                const isSpace = k.code === 'Space';
+                  // Dynamic Highlight state
+                  const isPressed =
+                    Boolean(currentActive) &&
+                    (currentActive === k.engLower ||
+                      currentActive === k.engUpper ||
+                      currentActive.toLowerCase() === k.engLower ||
+                      (isShiftKey && effectiveShift));
 
-                return (
-                  <button
-                    key={k.code}
-                    type="button"
-                    onClick={() => setSelectedKeyInfo(k)}
-                    className={`${k.width || 'w-13 sm:w-14'} h-14 sm:h-16 rounded-xl border border-slate-400 bg-white transition-all text-center flex flex-col justify-between p-1 shadow-2xs hover:border-slate-800 hover:shadow-xs cursor-pointer relative ${
-                      isActive
-                        ? 'ring-3 ring-blue-600 border-blue-600 bg-blue-50/50 scale-98'
-                        : ''
-                    } ${isSpecial && !isSpace ? 'bg-slate-50 justify-center items-center' : ''}`}
-                    title={k.desc || `${k.engKey} key`}
-                  >
-                    {!isSpecial && !isSpace ? (
-                      <>
-                        {/* Top: Shift Character (शीर्ष वर्ण) */}
-                        <div
-                          className={`text-base sm:text-lg leading-tight font-serif font-bold ${
-                            effectiveShift
-                              ? 'text-blue-700 scale-105 font-extrabold'
-                              : 'text-slate-800'
-                          }`}
-                        >
-                          {k.shiftHindi}
-                        </div>
-
-                        {/* Bottom: Normal Character (निचला वर्ण) */}
-                        <div
-                          className={`text-base sm:text-lg leading-tight font-serif font-bold ${
-                            !effectiveShift
-                              ? 'text-slate-900 font-extrabold'
-                              : 'text-slate-700'
-                          }`}
-                        >
-                          {k.normalHindi}
-                        </div>
-
-                        {/* Optional QWERTY Key Reference badge in corner */}
-                        {showQwertyHints && (
-                          <div className="absolute right-1 bottom-0.5 text-[8px] font-mono text-slate-400">
-                            {k.engKey}
+                  if (isSpecial) {
+                    return (
+                      <div
+                        key={k.code}
+                        onClick={() => {
+                          if (isShiftKey) setManualShift(!manualShift);
+                        }}
+                        className={`h-11 sm:h-12 md:h-13 border border-slate-400 rounded-lg flex items-center justify-center font-sans transition-all text-xs sm:text-sm font-semibold select-none ${
+                          k.width || 'w-14 sm:w-16'
+                        } ${
+                          isPressed || (isShiftKey && effectiveShift)
+                            ? 'bg-blue-600 text-white border-blue-700 shadow-inner'
+                            : 'bg-white text-slate-800 hover:bg-slate-50'
+                        } ${isShiftKey ? 'cursor-pointer' : ''}`}
+                      >
+                        {k.specialIcon ? (
+                          <div className="flex items-center gap-1.5">
+                            {k.specialIcon}
+                            {k.specialLabel && (
+                              <span className="text-[11px] sm:text-xs">{k.specialLabel}</span>
+                            )}
                           </div>
-                        )}
-                      </>
-                    ) : isSpace ? (
-                      <div className="h-full flex items-center justify-center text-xs text-slate-400 font-sans">
-                        Spacebar
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center leading-tight">
-                        <span className="font-serif font-bold text-xs sm:text-sm text-slate-900">
-                          {k.normalHindi}
-                        </span>
-                        {k.shiftHindi && (
-                          <span className="text-[11px] text-slate-600 font-serif font-medium mt-0.5">
-                            {k.shiftHindi}
+                        ) : isSpaceKey ? (
+                          <span className="text-xs sm:text-sm lowercase font-mono text-slate-500 tracking-wider">
+                            space
                           </span>
+                        ) : k.code.startsWith('Meta') ? (
+                          <span className="font-serif italic font-normal text-xs sm:text-sm text-slate-700">
+                            win
+                          </span>
+                        ) : (
+                          <span>{k.specialLabel}</span>
                         )}
                       </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+                    );
+                  }
 
-        {/* Selected Key Details Card */}
-        {selectedKeyInfo && !selectedKeyInfo.isSpecial && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-300 rounded-xl flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-bold bg-white px-2 py-1 rounded border border-blue-200 text-blue-900">
-                Key [{selectedKeyInfo.engKey.toUpperCase()}]
-              </span>
-              <div>
-                <span className="text-slate-700">निचला वर्ण (बिना Shift): </span>
-                <strong className="text-base text-slate-900 font-serif mr-4">
-                  {selectedKeyInfo.normalHindi}
-                </strong>
-                <span className="text-slate-700">शीर्ष वर्ण (Shift के साथ): </span>
-                <strong className="text-base text-blue-800 font-serif mr-4">
-                  {selectedKeyInfo.shiftHindi}
-                </strong>
-                {selectedKeyInfo.desc && (
-                  <span className="text-slate-500">({selectedKeyInfo.desc})</span>
-                )}
+                  // 4-Quadrant Standard Alphanumeric Key
+                  return (
+                    <div
+                      key={k.code}
+                      onClick={() => {
+                        const char = effectiveShift ? k.hindiShift : k.hindiNormal;
+                        if (char) {
+                          setTestInput((prev) => combineDevLysSequence(prev, char));
+                        }
+                      }}
+                      className={`h-11 sm:h-12 md:h-13 ${
+                        k.width || 'flex-1 min-w-[42px] max-w-[58px]'
+                      } border border-slate-400 rounded-lg p-1 sm:p-1.5 flex flex-col justify-between transition-all select-none cursor-pointer ${
+                        isPressed
+                          ? 'bg-amber-100 border-amber-500 shadow-inner ring-1 ring-amber-400'
+                          : 'bg-white hover:bg-slate-50 hover:border-slate-500 shadow-2xs'
+                      }`}
+                    >
+                      {/* Top Row: Shift Hindi (Left) & Shift English (Right) */}
+                      <div className="flex items-start justify-between w-full leading-none">
+                        <span
+                          className={`text-sm sm:text-base font-bold font-serif ${
+                            effectiveShift ? 'text-blue-700 scale-105' : 'text-slate-800'
+                          }`}
+                        >
+                          {k.hindiShift}
+                        </span>
+                        <span className="text-[10px] sm:text-[11px] font-sans font-semibold text-slate-400">
+                          {k.engUpper}
+                        </span>
+                      </div>
+
+                      {/* Bottom Row: Normal Hindi (Left) & Normal English (Right) */}
+                      <div className="flex items-end justify-between w-full leading-none mt-0.5">
+                        <span
+                          className={`text-sm sm:text-base font-bold font-serif ${
+                            !effectiveShift ? 'text-slate-900' : 'text-slate-600'
+                          }`}
+                        >
+                          {k.hindiNormal}
+                        </span>
+                        <span className="text-[10px] sm:text-[11px] font-sans font-medium text-slate-500">
+                          {k.engLower}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-            <button
-              onClick={() => setSelectedKeyInfo(null)}
-              className="text-slate-400 hover:text-slate-700 text-xs px-2 py-1"
-            >
-              ✕ बंद करें
-            </button>
+            ))}
           </div>
-        )}
-
-        {/* Official Guideline Tip */}
-        <div className="mt-4 flex items-center gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-300">
-          <Info className="w-4 h-4 text-blue-700 shrink-0" />
-          <span>
-            <strong>कुंजी नियम:</strong> प्रत्येक बटन पर ऊपर स्थित वर्ण <strong>Shift</strong> के साथ प्राप्त होता है (जैसे [d] = क, [Shift + d] = क्, [Shift + a] = । पूर्णविराम)। संख्या पंक्ति पर १, २, ३, ४, ५, ६, ७, ८, ९, ० अंकित हैं। [3] पर Shift = रु, [0] पर Shift = द्ध, [-] पर Shift = ऋ।
-          </span>
-        </div>
-      </div>
-
-      {/* Live Interactive Typing Sandbox Box */}
-      <div className="bg-white p-6 rounded-2xl border-2 border-blue-200 shadow-md space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-base text-slate-900">
-              🎯 लाइव की-बोर्ड परीक्षण (Live Layout Practice Sandbox)
-            </h3>
-          </div>
-          {testInput && (
-            <button
-              onClick={() => setTestInput('')}
-              className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Clear</span>
-            </button>
-          )}
-        </div>
-        <p className="text-xs text-slate-500">
-          यहाँ अपने कीबोर्ड से कुछ भी टाइप करें। यह इनपुट स्वचालित रूप से आधिकारिक DevLys 010 लेआउट में रूपांतरित होता है और ऊपर संबंधित कुंजी को हाइलाइट करता है:
-        </p>
-
-        <div className="relative">
-          <input
-            type="text"
-            value={testInput}
-            onChange={(e) => setTestInput(e.target.value)}
-            onKeyDown={handleTestKeyDown}
-            onKeyUp={handleTestKeyUp}
-            placeholder="यहाँ टाइप करें (जैसे dsoy = केवल, jktLFkku = राजस्थान)..."
-            className="w-full py-3.5 px-4 text-xl font-serif border-2 border-blue-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50 shadow-inner"
-          />
         </div>
 
-        {testInput && (
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
-            <div>
-              <span className="text-slate-500">टाइप किया गया पाठ: </span>
-              <strong className="text-sm font-serif text-slate-900">{testInput}</strong>
+        {/* 
+          BOTTOM SECTION: 4-Column Alt Code Table exactly matching image 7891dd73d03827530134e15ab51729ed.jpg
+        */}
+        <div className="mt-8 pt-6 border-t border-slate-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+              <Hash className="w-4 h-4 text-blue-700" />
+              <span>Standard DevLys 010 / Kruti Dev 010 Special Character Alt Codes</span>
             </div>
-            <div className="text-slate-400 font-mono">
-              लंबाई: {testInput.length} वर्ण
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Alt Codes Table */}
-      <div className="bg-white p-6 rounded-2xl border-2 border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
-              <KeyboardIcon className="w-5 h-5 text-blue-700" />
-              <span>DevLys 010 महत्वपूर्ण Alt Codes (विशेष संयुक्ताक्षर)</span>
-            </h4>
-            <p className="text-xs text-slate-500">
-              परीक्षा में पूछे जाने वाले विशेष अक्षरों के NumPad Alt Codes (Alt + 0XXX)
-            </p>
+            <span className="text-[11px] text-slate-500 font-mono">
+              क्लिक करके टेस्ट बॉक्स में इनपुट करें या NumPad से Alt दबाकर कोड टाइप करें
+            </span>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs sm:text-sm font-mono bg-slate-50 p-4 rounded-xl border border-slate-200">
+            {EXACT_IMAGE_ALT_CODES.map((column, colIdx) => (
+              <div key={colIdx} className="space-y-1.5">
+                {column.map((item, itemIdx) => {
+                  const parts = item.split('=');
+                  const code = parts[0]?.trim();
+                  const char = parts[1]?.trim() || '';
+
+                  return (
+                    <button
+                      key={itemIdx}
+                      type="button"
+                      onClick={() => handleInsertAltChar(char, code)}
+                      className="w-full flex items-center justify-between py-1 px-2 rounded hover:bg-white hover:shadow-2xs hover:border hover:border-slate-300 transition-all text-left text-slate-800 cursor-pointer group"
+                    >
+                      <span className="text-slate-600 font-semibold group-hover:text-blue-700">
+                        {code}
+                      </span>
+                      <span className="font-bold font-serif text-base text-slate-900 group-hover:text-blue-900 ml-2">
+                        = {char}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Live Interactive Typing Sandbox */}
+        <div className="mt-6 bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <label className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                लाइव टाइपिंग सैंडबॉक्स (DevLys 010 Live Test Box):
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              {copiedCode && (
+                <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                  <Check className="w-3 h-3" /> {copiedCode} डाला गया
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setTestInput('')}
+                className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer font-medium"
+              >
+                <RotateCcw className="w-3 h-3" />
+                साफ़ करें (Clear)
+              </button>
+            </div>
+          </div>
+
+          <div className="relative">
             <input
               type="text"
-              placeholder="खोजें (e.g. 0216, क्र, द्व, ट्ट)..."
-              value={altSearch}
-              onChange={(e) => setAltSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50"
+              value={testInput}
+              onChange={() => {}}
+              onKeyDown={handleTestKeyDown}
+              onKeyUp={handleTestKeyUp}
+              placeholder="यहाँ टाइप करें (e.g. dsoy ➔ केवल, dz ➔ क्र, Shift+Z e ➔ र्म, Alt+0216 ➔ क्र)..."
+              className="w-full p-3.5 bg-white border-2 border-slate-300 rounded-lg text-lg font-serif text-slate-900 focus:outline-hidden focus:border-blue-600 shadow-inner"
             />
+          </div>
+
+          {/* Quick ligature shortcut buttons */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase mr-1">
+              क्विक लिगेचर्स:
+            </span>
+            {ALT_CODES_REFERENCE.slice(0, 10).map((ref) => (
+              <button
+                key={ref.code}
+                type="button"
+                onClick={() => handleInsertAltChar(ref.char, ref.code)}
+                title={`${ref.code}: ${ref.description}`}
+                className="px-2 py-0.5 bg-white border border-slate-300 hover:border-blue-500 hover:bg-blue-50 rounded text-xs font-serif text-slate-800 transition-colors shadow-2xs cursor-pointer"
+              >
+                <span className="font-bold text-sm text-blue-900">{ref.char}</span>
+                <span className="ml-1 text-[10px] text-slate-400 font-mono">
+                  {ref.code.replace('Alt+', '')}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2.5">
-          {filteredAltCodes.map((item) => (
-            <div
-              key={item.code}
-              className="p-3 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-blue-50/80 hover:border-blue-300 transition-all flex flex-col items-center justify-center text-center shadow-2xs"
-            >
-              <span className="text-2xl font-bold text-slate-900 font-serif mb-1">
-                {item.char}
-              </span>
-              <span className="text-xs font-mono font-bold text-blue-800 bg-white px-2 py-0.5 rounded border border-slate-300">
-                {item.code}
-              </span>
-              <span className="text-[10px] text-slate-500 mt-1 truncate max-w-full font-sans">
-                {item.description}
-              </span>
-            </div>
-          ))}
+        {/* Footer print action and guidelines note */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 border-t border-slate-200 pt-4 gap-2">
+          <span>Standard की-बोर्ड एवं DevLys 010 फॉन्ट — राजस्थान कर्मचारी चयन बोर्ड (RSMSSB)</span>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300 font-semibold cursor-pointer transition-colors"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>प्रिंट चार्ट (Print Layout)</span>
+          </button>
         </div>
       </div>
     </div>

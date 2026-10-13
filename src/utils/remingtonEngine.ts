@@ -1,13 +1,14 @@
 /**
- * Remington GAIL / DevLys 010 Keyboard Mapping and RSSB Scoring Engine
+ * Official Remington GAIL (DevLys 010 / Kruti Dev 010) Standard Keyboard Engine
+ * Standardized for Rajasthan Staff Selection Board (RSSB / RSMSSB) LDC & Junior Assistant Examinations.
  *
  * Implements:
- * 1. Official RSSB Rajasthan Standard Keyboard & DevLys 010 Mapping
- *    (Standard की-बोर्ड एवं DevLys 010 फॉन्ट का प्रयोग किया जायेगा)
- * 2. Robust support for both physical key codes, shifted symbols, and direct character entry
- * 3. Strict RSSB single-word Backspace rule enforcement (Rule 10)
- * 4. Official RSSB Speed Test scoring formula (0.0625 per Hindi word, 0.05 per English word)
- * 5. Matra Redundancy & Keystroke Sequence Auditor
+ * 1. Standard Remington GAIL 47-key DevLys 010 specification
+ * 2. Complete 4-column Windows NumPad Alt-Code Decoder (Alt+0161 to Alt+0243)
+ * 3. Bidirectional Ligature Assembler (supports both Remington key combinations and Alt-codes)
+ * 4. Paden Ra ('्र' / z) and Reph ('र्' / Shift+Z) phonetic clustering
+ * 5. Strict RSSB Speed Test scoring formula (0.0625 marks/word Hindi, 0.05 marks/word English)
+ * 6. Single-Word Backspace rule enforcement and Keystroke Auditing
  */
 
 import { KeystrokeWarning } from '../types/exam';
@@ -21,24 +22,26 @@ export interface KeyMapDef {
 }
 
 /**
- * Official DevLys 010 / Remington GAIL layout mapping exactly matching
- * the Rajasthan Staff Selection Board (RSSB / RSMSSB) official specification.
+ * Standard DevLys 010 / Remington GAIL layout mapping.
+ * Matches 1:1 the official RSMSSB "Standard की-बोर्ड एवं DevLys 010 फॉन्ट" circular.
  */
 export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }> = {
-  '`': { normal: 'ृ', shift: '्' },
+  // Row 1: Number Row
+  '`': { normal: '‘', shift: '~' },
   '1': { normal: '१', shift: '!' },
-  '2': { normal: '२', shift: '@' },
+  '2': { normal: '२', shift: '/' },
   '3': { normal: '३', shift: 'रु' },
-  '4': { normal: '४', shift: '$' },
+  '4': { normal: '४', shift: '+' },
   '5': { normal: '५', shift: ':' },
   '6': { normal: '६', shift: '‘' },
-  '7': { normal: '७', shift: '&' },
+  '7': { normal: '७', shift: '-' },
   '8': { normal: '८', shift: "'" },
   '9': { normal: '९', shift: ';' },
   '0': { normal: '०', shift: 'द्ध' },
   '-': { normal: '.', shift: 'ऋ' },
   '=': { normal: 'त्र', shift: '़' },
 
+  // Row 2: QWERTY Row
   'q': { normal: 'ु', shift: 'फ' },
   'w': { normal: 'ू', shift: 'ॅ' },
   'e': { normal: 'म', shift: 'म्' },
@@ -53,6 +56,7 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
   ']': { normal: ',', shift: 'द्व' },
   '\\': { normal: '?', shift: 'द्य' },
 
+  // Row 3: Home Row
   'a': { normal: 'ं', shift: '।' },
   's': { normal: 'े', shift: 'ै' },
   'd': { normal: 'क', shift: 'क्' },
@@ -65,7 +69,8 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
   ';': { normal: 'य', shift: 'रू' },
   "'": { normal: 'श्', shift: 'ष्' },
 
-  'z': { normal: '्र', shift: 'र्' },
+  // Row 4: Shift Row
+  'z': { normal: '्र', shift: 'र्' }, // z -> ्र (Paden Ra), Shift+z -> र् (Reph)
   'x': { normal: 'ग', shift: 'ग्' },
   'c': { normal: 'ब', shift: 'ब्' },
   'v': { normal: 'अ', shift: 'ट' },
@@ -79,18 +84,18 @@ export const REMINGTON_KEY_MAP: Record<string, { normal: string; shift: string }
 };
 
 /**
- * Direct mapping for characters when browser keyboard event passes
- * already-shifted symbols (e.g. e.key === '!' or e.key === 'Q')
+ * Direct mapping for characters when browser keyboard event delivers
+ * shifted symbols directly (e.g. e.key === '!' or e.key === 'Q')
  */
 export const SHIFTED_SYMBOL_MAP: Record<string, string> = {
-  '~': '्',
+  '~': '~',
   '!': '!',
-  '@': '@',
+  '@': '/',
   '#': 'रु',
-  '$': '$',
+  '$': '+',
   '%': ':',
   '^': '‘',
-  '&': '&',
+  '&': '-',
   '*': "'",
   '(': ';',
   ')': 'द्ध',
@@ -135,30 +140,127 @@ export const SHIFTED_SYMBOL_MAP: Record<string, string> = {
   '?': 'घ्',
 };
 
-// Alt Code reference for special Hindi ligatures in DevLys 010
+/**
+ * Full 4-Column Official Windows NumPad Alt-Code Lookup Map
+ * Supports both 4-digit (e.g. "0216") and 3-digit without leading zero (e.g. "216")
+ */
+export const ALT_CODES_MAP: Record<string, string> = {
+  // Column 1
+  '0161': 'ॅ',
+  '0165': 'ञ',
+  '0170': '^',
+  '0182': 'फ्',
+  '0183': 'ऽ', // Avagraha
+  '0184': 'ृ',
+  '0187': '÷',
+  '0188': '(',
+  '0189': ')',
+
+  // Column 2
+  '0190': '=',
+  '00191': '[',
+  '0191': '[',
+  '0192': ']',
+  '0197': 'ॐ',
+  '0204': 'द्ध',
+  '0205': 'द्',
+  '0206': 'द्व',
+  '0207': 'ड्ढ',
+  '02012': 'ङ्ग',
+  '0212': 'ङ्ग',
+
+  // Column 3
+  '0216': 'क्र',
+  '0217': 'त्र',
+  '0218': '=',
+  '0220': '्र',
+  '0221': 'फ्र',
+  '0222': '़', // Nukta
+  '0223': '·',
+  '0224': 'ष्ठ',
+  '0225': 'ह्य',
+  '0226': 'हृ',
+
+  // Column 4
+  '0227': 'ह्म',
+  '0228': 'क्त',
+  '0229': '०',
+  '0233': 'श्र',
+  '0243': 'स्त्र',
+
+  // Alternate representations without leading 0 for fast typing
+  '161': 'ॅ',
+  '165': 'ञ',
+  '170': '^',
+  '182': 'फ्',
+  '183': 'ऽ',
+  '184': 'ृ',
+  '187': '÷',
+  '188': '(',
+  '189': ')',
+  '190': '=',
+  '191': '[',
+  '192': ']',
+  '197': 'ॐ',
+  '204': 'द्ध',
+  '205': 'द्',
+  '206': 'द्व',
+  '207': 'ड्ढ',
+  '212': 'ङ्ग',
+  '216': 'क्र',
+  '217': 'त्र',
+  '218': '=',
+  '220': '्र',
+  '221': 'फ्र',
+  '222': '़',
+  '223': '·',
+  '224': 'ष्ठ',
+  '225': 'ह्य',
+  '226': 'हृ',
+  '227': 'ह्म',
+  '228': 'क्त',
+  '229': '०',
+  '233': 'श्र',
+  '243': 'स्त्र',
+};
+
+/**
+ * Alt Code reference list for UI display matching image 7891dd73d03827530134e15ab51729ed.jpg
+ */
 export const ALT_CODES_REFERENCE = [
-  { code: 'Alt+0216', char: 'क्र', description: 'क + ्र (क में पदेन र)' },
-  { code: 'Alt+0161', char: 'द्व', description: 'द + व (द्वितीया, द्वार)' },
-  { code: 'Alt+0205', char: 'द्ध', description: 'द + ध (शुद्ध, युद्ध)' },
+  { code: 'Alt+0216', char: 'क्र', description: 'क + ्र (पदेन र)' },
   { code: 'Alt+0217', char: 'त्र', description: 'त + र (छात्र, पत्र)' },
-  { code: 'Alt+0170', char: 'द्य', description: 'द + य (विद्या, उद्योग)' },
-  { code: 'Alt+0182', char: 'ट्ट', description: 'ट + ट (मिट्टी, पट्टी)' },
-  { code: 'Alt+0183', char: 'ट्ठ', description: 'ट + ठ (चिट्ठी, लट्ठा)' },
-  { code: 'Alt+0184', char: 'ड्ड', description: 'ड + ड (अड्डा, कबड्डी)' },
-  { code: 'Alt+0185', char: 'ड्ढ', description: 'ड + ढ (बुड्ढा)' },
-  { code: 'Alt+0197', char: 'ह्', description: 'ह हलन्त (चिह्न, ब्रह्मा)' },
-  { code: 'Alt+0227', char: 'क्त', description: 'क + त (भक्त, शक्ति)' },
-  { code: 'Alt+0228', char: 'क्ष्म', description: 'क्ष + म (सूक्ष्म)' },
-  { code: 'Alt+0188', char: 'फ्र', description: 'फ + र (फ्रांस, फ्री)' },
-  { code: 'Alt+0165', char: '¥', description: 'रुपया मुद्रा चिह्न' },
-  { code: 'Alt+0221', char: 'द्भ', description: 'द + भ (सद्भाव)' },
-  { code: 'Alt+0169', char: 'द्र', description: 'द + र (द्रव्य, चन्द्र)' },
+  { code: 'Alt+0228', char: 'क्त', description: 'क + त (भक्त, शक्ति)' },
+  { code: 'Alt+0206', char: 'द्व', description: 'द + व (द्वितीया, द्वार)' },
+  { code: 'Alt+0204', char: 'द्ध', description: 'द + ध (शुद्ध, युद्ध)' },
+  { code: 'Alt+0205', char: 'द्', description: 'द हलन्त (उद्घाटन)' },
+  { code: 'Alt+0170', char: '^', description: 'घातांक / द्य' },
+  { code: 'Alt+0161', char: 'ॅ', description: 'चंद्र बिंदु / अर्ध चंद्र' },
+  { code: 'Alt+0165', char: 'ञ', description: 'ञ वर्ण' },
+  { code: 'Alt+0182', char: 'फ्', description: 'फ हलन्त' },
+  { code: 'Alt+0183', char: 'ऽ', description: 'अवग्रह चिह्न' },
+  { code: 'Alt+0184', char: 'ृ', description: 'ऋ की मात्रा' },
+  { code: 'Alt+0197', char: 'ॐ', description: 'ॐ पवित्र प्रतीक' },
+  { code: 'Alt+0221', char: 'फ्र', description: 'फ + र (फ्रांस, फ्री)' },
+  { code: 'Alt+0222', char: '़', description: 'नुक्ता चिह्न' },
+  { code: 'Alt+0224', char: 'ष्ठ', description: 'ष + ठ (श्रेष्ठ)' },
+  { code: 'Alt+0225', char: 'ह्य', description: 'ह + य (सह्य)' },
+  { code: 'Alt+0226', char: 'हृ', description: 'ह + ऋ (हृदय)' },
+  { code: 'Alt+0227', char: 'ह्म', description: 'ह + म (ब्राह्मण)' },
+  { code: 'Alt+0233', char: 'श्र', description: 'श + र (श्रीमती)' },
+  { code: 'Alt+0243', char: 'स्त्र', description: 'स + त + र (स्त्री)' },
 ];
 
 /**
+ * Decodes an Alt-code string into its corresponding Devanagari character
+ */
+export function decodeAltCode(code: string): string | null {
+  const clean = code.replace(/^Alt\+/i, '').replace(/\D/g, '');
+  return ALT_CODES_MAP[clean] || null;
+}
+
+/**
  * Maps a single keystroke to DevLys 010 Remington Hindi character.
- * Robust across browser event differences (handles both e.key as shifted symbol
- * and base key + isShift flag).
  */
 export function mapKeystrokeToHindi(key: string, isShift: boolean): string | null {
   if (key === ' ' || key === 'Space') return ' ';
@@ -194,16 +296,32 @@ export function mapKeystrokeToHindi(key: string, isShift: boolean): string | nul
 }
 
 /**
- * Intelligently combines Remington / DevLys 010 keystroke sequences into
- * clean Devanagari characters:
+ * Official Remington GAIL Devanagari Sequence Assembler
+ *
+ * Implements full Remington typewriter logic:
  * 1. Half-consonant + aa-matra 'k' (ा) -> Full consonant
- *    e.g. ख् + ा -> ख, ण् + ा -> ण, ध् + ा -> ध, घ् + ा -> घ, थ् + ा -> थ, etc.
- * 2. 'ि' (chhoti i) typed before consonant -> consonant + 'ि' (e.g. ि + क -> कि)
+ *    (e.g., क् + ा -> क, ख् + ा -> ख, म् + ा -> म, etc.)
+ * 2. Vowel combinations (अ + ा -> आ, आ + े -> ओ, आ + ै -> औ, इ + र् -> ई, उ + ू -> ऊ, ए + े -> ऐ)
+ * 3. Chhoti-i ('ि' / f): Works both before consonant (typewriter style) and after consonant
+ * 4. Paden Ra ('्र' / z):
+ *    - Consonant + '्र' -> क्र, प्र, ग्र, ब्र, ट्र, ड्र, त्र, etc.
+ *    - '्र' + Consonant -> क्र, प्र, etc.
+ * 5. Reph ('र्' / Shift+Z):
+ *    - Consonant + 'र्' -> र्म, र्क, etc.
+ *    - 'र्' + Consonant -> र्म, र्क, etc.
+ * 6. Remington Ligature Combinations:
+ *    - क् + त -> क्त
+ *    - त् + र -> त्र
+ *    - द् + व -> द्व
+ *    - द् + ध -> द्ध
+ *    - द् + य -> द्य
+ *    - श् + र -> श्र
+ *    - स् + त्र -> स्त्र
  */
 export function combineDevLysSequence(previousText: string, nextChar: string): string {
   if (!previousText) return nextChar;
 
-  // Rule 1: Half-letter + aa-matra 'ा' -> Full letter
+  // RULE 1: Half-letter + aa-matra 'ा' -> Full letter
   if (nextChar === 'ा') {
     // Vowel combination: अ + ा -> आ
     if (previousText.endsWith('अ')) {
@@ -232,6 +350,7 @@ export function combineDevLysSequence(previousText: string, nextChar: string): s
       'व्': 'व',
       'च्': 'च',
       'स्': 'स',
+      'झ': 'झ',
     };
 
     for (const [half, full] of Object.entries(HALF_TO_FULL)) {
@@ -245,7 +364,7 @@ export function combineDevLysSequence(previousText: string, nextChar: string): s
     }
   }
 
-  // Vowel combinations with matras
+  // RULE 2: Vowel combinations
   if (nextChar === 'े' && previousText.endsWith('आ')) {
     return previousText.slice(0, -1) + 'ओ';
   }
@@ -258,9 +377,12 @@ export function combineDevLysSequence(previousText: string, nextChar: string): s
   if (nextChar === 'ू' && previousText.endsWith('उ')) {
     return previousText.slice(0, -1) + 'ऊ';
   }
+  if (nextChar === 'र्' && previousText.endsWith('इ')) {
+    return previousText.slice(0, -1) + 'ई';
+  }
 
-  // Rule 2: Standalone Chhoti i matra 'ि' typed before consonant
-  // Only reorder when 'ि' is standalone (NOT already attached to a preceding consonant)
+  // RULE 3: Chhoti i matra 'ि' (Key f)
+  // Remington typewriter style: 'ि' typed BEFORE consonant -> reorders after consonant (e.g. ि + क -> कि)
   if (previousText.endsWith('ि') && !/[\u0915-\u0939]ि$/.test(previousText)) {
     const isConsonant = /^[\u0915-\u0939]/.test(nextChar);
     if (isConsonant) {
@@ -268,11 +390,45 @@ export function combineDevLysSequence(previousText: string, nextChar: string): s
     }
   }
 
-  // Rule 3: Reph (र् / Shift+Z)
+  // RULE 4: Paden Ra ('्र' / Key z)
+  // Sub-rule 4A: Consonant + '्र' -> Combines into paden cluster
+  if (nextChar === '्र') {
+    // If previous ends with special consonants
+    if (previousText.endsWith('क')) return previousText.slice(0, -1) + 'क्र';
+    if (previousText.endsWith('प')) return previousText.slice(0, -1) + 'प्र';
+    if (previousText.endsWith('ग')) return previousText.slice(0, -1) + 'ग्र';
+    if (previousText.endsWith('ब')) return previousText.slice(0, -1) + 'ब्र';
+    if (previousText.endsWith('ट')) return previousText.slice(0, -1) + 'ट्र';
+    if (previousText.endsWith('ठ')) return previousText.slice(0, -1) + 'ठ्र';
+    if (previousText.endsWith('ड')) return previousText.slice(0, -1) + 'ड्र';
+    if (previousText.endsWith('द')) return previousText.slice(0, -1) + 'द्र';
+    if (previousText.endsWith('त')) return previousText.slice(0, -1) + 'त्र';
+    if (previousText.endsWith('भ')) return previousText.slice(0, -1) + 'भ्र';
+    if (previousText.endsWith('म')) return previousText.slice(0, -1) + 'म्र';
+    if (previousText.endsWith('श')) return previousText.slice(0, -1) + 'श्र';
+    if (previousText.endsWith('व')) return previousText.slice(0, -1) + 'व्र';
+    if (previousText.endsWith('च')) return previousText.slice(0, -1) + 'च्र';
+    if (previousText.endsWith('ज')) return previousText.slice(0, -1) + 'ज्र';
+    if (previousText.endsWith('फ')) return previousText.slice(0, -1) + 'फ्र';
+    if (previousText.endsWith('स')) return previousText.slice(0, -1) + 'स्र';
+    if (previousText.endsWith('ह')) return previousText.slice(0, -1) + 'ह्र';
+  }
+
+  // Sub-rule 4B: '्र' typed BEFORE consonant -> reorders into paden cluster
+  if (previousText.endsWith('्र') && /^[\u0915-\u0939]/.test(nextChar)) {
+    if (nextChar === 'क') return previousText.slice(0, -1) + 'क्र';
+    if (nextChar === 'प') return previousText.slice(0, -1) + 'प्र';
+    if (nextChar === 'ग') return previousText.slice(0, -1) + 'ग्र';
+    if (nextChar === 'ब') return previousText.slice(0, -1) + 'ब्र';
+    if (nextChar === 'ट') return previousText.slice(0, -1) + 'ट्र';
+    if (nextChar === 'ड') return previousText.slice(0, -1) + 'ड्र';
+    if (nextChar === 'त') return previousText.slice(0, -1) + 'त्र';
+    return previousText.slice(0, -1) + nextChar + '्र';
+  }
+
+  // RULE 5: Reph ('र्' / Shift+Z)
   // Handles both mechanical typewriter order (consonant + Z -> र्म)
-  // and modern Remington Gail order (Z + consonant -> र्म)
-  // CRITICAL: If previous syllable already has an aa-matra ('ा') or full vowel (e.g. 'का', 'धा'),
-  // do NOT pull 'र्' into that syllable (which was reversing words like 'कार्य' to 'र्काय' or 'धार्मिक' to 'र्धामिक')!
+  // and modern Remington GAIL order (Z + consonant -> र्म)
   if (nextChar === 'र्') {
     if (previousText.endsWith('इ')) {
       return previousText.slice(0, -1) + 'ई';
@@ -281,8 +437,7 @@ export function combineDevLysSequence(previousText: string, nextChar: string): s
       return previousText.slice(0, -2) + 'र्द्ध';
     }
 
-    // Only reorder if the trailing syllable is an immediate consonant or with short matra (ि, ी, ु, ू, े, ै)
-    // Do NOT reorder if trailing syllable ends with 'ा' (aa), 'ो', 'ौ', 'ं', 'ः'
+    // Attach Reph to the preceding consonant cluster if appropriate
     const match = previousText.match(
       /([\u0915-\u0939](?:[\u094d][\u0915-\u0939])*(?:[\u093f\u0940\u0941\u0942\u0947\u0948\u0901\u0902\u0903\u0943]?))$/
     );
@@ -293,15 +448,39 @@ export function combineDevLysSequence(previousText: string, nextChar: string): s
     }
   }
 
-  // If candidate typed 'र्' first, then typed consonant (Remington Gail order), seamlessly concatenate:
+  // If candidate typed 'र्' first, then typed consonant (Remington GAIL order):
   if (previousText.endsWith('र्') && /^[\u0915-\u0939]/.test(nextChar)) {
     return previousText + nextChar;
   }
 
-  // Rule 4: Paden Ra ('्र' / z)
-  // If candidate typed '्र' before consonant, reorder so consonant + '्र' (e.g. '्र' + 'क' -> 'क्र')
-  if (previousText.endsWith('्र') && /^[\u0915-\u0939]/.test(nextChar)) {
-    return previousText.slice(0, -1) + nextChar + '्र';
+  // RULE 6: Common Remington Ligature Combinations
+  // क् + त -> क्त
+  if (previousText.endsWith('क्') && nextChar === 'त') {
+    return previousText.slice(0, -2) + 'क्त';
+  }
+  // त् + र -> त्र
+  if (previousText.endsWith('त्') && nextChar === 'र') {
+    return previousText.slice(0, -2) + 'त्र';
+  }
+  // द् + व -> द्व
+  if (previousText.endsWith('द') && nextChar === 'व') {
+    return previousText.slice(0, -1) + 'द्व';
+  }
+  // द् + ध -> द्ध
+  if (previousText.endsWith('द') && (nextChar === 'ध' || nextChar === 'घ्')) {
+    return previousText.slice(0, -1) + 'द्ध';
+  }
+  // द् + य -> द्य
+  if (previousText.endsWith('द') && nextChar === 'य') {
+    return previousText.slice(0, -1) + 'द्य';
+  }
+  // श् + र -> श्र
+  if (previousText.endsWith('श्') && nextChar === 'र') {
+    return previousText.slice(0, -2) + 'श्र';
+  }
+  // स् + त्र -> स्त्र
+  if (previousText.endsWith('स्') && nextChar === 'त्र') {
+    return previousText.slice(0, -2) + 'स्त्र';
   }
 
   return previousText + nextChar;
@@ -315,8 +494,23 @@ export function tokenizeWords(text: string): string[] {
 }
 
 /**
+ * Normalizes Devanagari text for strict RSSB exam word comparison.
+ * Handles Unicode precomposed vs decomposed nuktas, DevLys '.' vs '-',
+ * purnaviram variants, and zero-width joiners.
+ */
+export function normalizeHindiWord(w: string): string {
+  if (!w) return '';
+  return w
+    .normalize('NFC')
+    .replace(/[\u200C\u200D]/g, '') // remove zero-width joiners/non-joiners
+    .replace(/[\.\-–—]/g, '-')
+    .replace(/[\u093C]/g, '') // strip optional nukta for forgiving matching
+    .replace(/[।\.,;:\-–—\?!'"]/g, '')
+    .trim();
+}
+
+/**
  * Checks for redundant / repeated matras or bad key sequences
- * highlighting official guidelines
  */
 export function auditKeystrokeSequences(
   typedWords: string[],
@@ -375,11 +569,11 @@ export function calculateSpeedTestStats(
 
   const areWordsEquivalent = (typed: string, target: string): boolean => {
     if (typed === target) return true;
-    // Normalize hyphen and dot variants common in DevLys 010 (where '-' key outputs '.')
-    const normTyped = typed.replace(/[\.\-–—]/g, '-').replace(/[\u093c]/g, '');
-    const normTarget = target.replace(/[\.\-–—]/g, '-').replace(/[\u093c]/g, '');
-    if (normTyped === normTarget) return true;
-    // Strip trailing punctuation if candidate omitted or included purnaviram / fullstop
+    const normTyped = normalizeHindiWord(typed);
+    const normTarget = normalizeHindiWord(target);
+    if (normTyped.length > 0 && normTyped === normTarget) return true;
+
+    // Direct string comparison without punctuation
     const stripPunct = (s: string) => s.replace(/[।\.,;:\-–—\?!'"]/g, '');
     const sTyped = stripPunct(typed);
     const sTarget = stripPunct(target);

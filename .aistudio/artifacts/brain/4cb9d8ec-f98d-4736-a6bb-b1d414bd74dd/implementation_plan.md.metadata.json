@@ -1,0 +1,6 @@
+{
+  "summary": "Comprehensive plan to scrap current DevLys 010 mapping and replace it across the entire application with the official standard Remington GAIL layout (DevLys 010 / Kruti Dev 010) as prescribed by RSMSSB/RSSB. Incorporates full keyboard layout synchronization, standard NumPad Alt codes, ligature combiners, and updates to the engine, drills, exam runners, and visualizer.",
+  "updatedAt": "2026-10-13T07:57:30.743630198Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

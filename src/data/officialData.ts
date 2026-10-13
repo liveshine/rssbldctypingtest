@@ -57,6 +57,7 @@ export const INITIAL_HINDI_DOC_STATE: DocumentState = {
       marginTop: 4,
       marginBottom: 8,
       indentLeft: 0,
+      highlightedWords: [],
     },
     {
       id: 'p2',
@@ -74,6 +75,7 @@ export const INITIAL_HINDI_DOC_STATE: DocumentState = {
       marginTop: 4,
       marginBottom: 8,
       indentLeft: 0,
+      highlightedWords: [],
     },
     {
       id: 'p3',
@@ -91,6 +93,7 @@ export const INITIAL_HINDI_DOC_STATE: DocumentState = {
       marginTop: 4,
       marginBottom: 8,
       indentLeft: 0,
+      highlightedWords: [],
     },
     {
       id: 'p4',
@@ -108,6 +111,7 @@ export const INITIAL_HINDI_DOC_STATE: DocumentState = {
       marginTop: 4,
       marginBottom: 8,
       indentLeft: 0,
+      highlightedWords: [],
     },
   ],
   pageMargin: 'normal',

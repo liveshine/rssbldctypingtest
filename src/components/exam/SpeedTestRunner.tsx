@@ -5,6 +5,8 @@ import {
   mapKeystrokeToHindi,
   combineDevLysSequence,
   tokenizeWords,
+  ALT_CODES_MAP,
+  ALT_CODES_REFERENCE,
 } from '../../utils/remingtonEngine';
 import { KeyboardVisualizer } from '../KeyboardVisualizer';
 import {
@@ -17,6 +19,7 @@ import {
   User,
   CheckCircle2,
   Sparkles,
+  Zap,
 } from 'lucide-react';
 
 interface SpeedTestRunnerProps {
@@ -57,6 +60,7 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const activeWordRef = useRef<HTMLSpanElement>(null);
   const targetWords = useRef(tokenizeWords(passageText)).current;
+  const altBufferRef = useRef('');
 
   // Reset words if passageText changes (e.g. user clicked switch passage)
   useEffect(() => {
@@ -147,6 +151,13 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
     onFinishTest(result);
   };
 
+  const handleInsertLigature = (char: string, label: string) => {
+    if (isTestFinished) return;
+    setCurrentWordInput((prev) => combineDevLysSequence(prev, char));
+    setCurrentRawKeystrokes((prev) => prev + `[${label}]`);
+    inputRef.current?.focus();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     setActiveKey(e.key);
     setIsShiftActive(e.shiftKey);
@@ -191,8 +202,34 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
       return;
     }
 
-    // Hindi Remington Layout Handling
+    // Hindi Remington Layout & Alt-code Handling
     if (paperType === 'hindi_speed') {
+      // 1. Windows NumPad Alt-Code Decoder (Alt + Digits)
+      if (e.altKey || e.key === 'Alt') {
+        const digitMatch = e.code.match(/^(?:Numpad|Digit)([0-9])$/);
+        const digit = digitMatch ? digitMatch[1] : (/^[0-9]$/.test(e.key) ? e.key : null);
+        if (digit !== null) {
+          e.preventDefault();
+          altBufferRef.current += digit;
+          const decoded = ALT_CODES_MAP[altBufferRef.current];
+          if (decoded && altBufferRef.current.length >= 4) {
+            setCurrentWordInput((prev) => combineDevLysSequence(prev, decoded));
+            setCurrentRawKeystrokes((prev) => prev + `[Alt+${altBufferRef.current}]`);
+            altBufferRef.current = '';
+          }
+          return;
+        }
+      }
+
+      // 2. Direct Devanagari character input (if IME or OS passes it directly)
+      if (/^[\u0900-\u097F]/.test(e.key)) {
+        e.preventDefault();
+        setCurrentRawKeystrokes((prev) => prev + e.key);
+        setCurrentWordInput((prev) => combineDevLysSequence(prev, e.key));
+        return;
+      }
+
+      // 3. Standard Remington GAIL Key Mapping
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         setCurrentRawKeystrokes((prev) => prev + e.key);
@@ -202,8 +239,20 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
     }
   };
 
-  const handleKeyUp = () => {
-    setIsShiftActive(false);
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    setIsShiftActive(e.shiftKey);
+
+    // If Alt was released and we have accumulated digits in buffer (e.g. 0216, 216)
+    if (e.key === 'Alt' || (!e.altKey && altBufferRef.current.length > 0)) {
+      if (altBufferRef.current) {
+        const decoded = ALT_CODES_MAP[altBufferRef.current];
+        if (decoded) {
+          setCurrentWordInput((prev) => combineDevLysSequence(prev, decoded));
+          setCurrentRawKeystrokes((prev) => prev + `[Alt+${altBufferRef.current}]`);
+        }
+        altBufferRef.current = '';
+      }
+    }
   };
 
   const currentWordIndex = typedWords.length;
@@ -213,9 +262,7 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
     timeElapsedMinutes > 0 ? Math.round(typedWords.length / timeElapsedMinutes) : 0;
 
   return (
-    <div
-      className="w-full max-w-7xl mx-auto my-2 bg-white rounded-lg shadow-xl border-2 border-slate-300 overflow-hidden font-sans select-text"
-    >
+    <div className="w-full max-w-7xl mx-auto my-2 bg-white rounded-lg shadow-xl border-2 border-slate-300 overflow-hidden font-sans select-text">
       {/* Official Top Institutional Header matching Screenshot 3 & 5 */}
       <div className="bg-slate-100 border-b-2 border-slate-300 px-6 py-2.5 flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Left: Candidate Identification */}
@@ -255,88 +302,101 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
           </div>
         </div>
 
-        {/* Right: Actions (Change Paragraph & Submit Paper) */}
+        {/* Right: Actions */}
         <div className="flex items-center gap-2">
+          {paperType === 'hindi_speed' && (
+            <button
+              onClick={() => setShowKeyboardMap(!showKeyboardMap)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition-colors shadow-xs"
+              title="Toggle DevLys 010 Remington Layout"
+            >
+              <Keyboard className="w-3.5 h-3.5 text-blue-600" />
+              <span>{showKeyboardMap ? 'कीबोर्ड छिपाएं' : 'कीबोर्ड लेआउट'}</span>
+            </button>
+          )}
+
           {onSwitchPassage && (
             <button
               onClick={onSwitchPassage}
-              className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 hover:border-blue-400 rounded shadow-xs flex items-center gap-1.5 transition-colors"
-              title="Get a new unseen random paragraph from 100+ bank"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
+              title="Next Random Exam Passage"
             >
-              <Shuffle className="w-3.5 h-3.5 text-blue-600" />
-              <span className="hidden sm:inline">New Paragraph</span>
-              <span className="sm:hidden">New</span>
+              <Shuffle className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">नया गद्यांश</span>
             </button>
           )}
 
           <button
             onClick={handleFinalSubmission}
-            className="px-5 py-1.5 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 rounded shadow-md transition-colors uppercase tracking-wider"
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
           >
-            Submit Paper
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Submit Exam</span>
           </button>
         </div>
       </div>
 
-      <div className="p-4 md:p-6 space-y-4">
-        {/* Active Passage Title & Details Strip */}
-        <div className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-200 pb-2">
+      {/* Main Workspace */}
+      <div className="p-6 space-y-6">
+        {/* Exam Instructions Banner matching Official Guidelines */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs bg-blue-50/70 border border-blue-200 rounded px-4 py-2 text-blue-900 gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-800 font-serif">
-              पैराग्राफ शीर्षक: {passageTitle}
+            <span className="font-bold uppercase tracking-wider text-[11px] bg-blue-200/60 px-2 py-0.5 rounded">
+              Official Standard
+            </span>
+            <span>
+              {paperType === 'hindi_speed'
+                ? 'Standard की-बोर्ड एवं DevLys 010 फॉन्ट (Remington GAIL Layout) · 400 शब्द लक्ष्य · 25 अंक'
+                : 'English Speed Test (US Standard Layout) · 500 Words Target · 25 Marks'}
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-slate-500">
-              लक्ष्य:{' '}
-              <strong className="text-slate-900">
-                {paperType === 'hindi_speed' ? '400 शब्द' : '500 शब्द'}
-              </strong>{' '}
-              (पूर्णांक 25.0)
-            </span>
-            <button
-              onClick={() => setShowKeyboardMap(!showKeyboardMap)}
-              className="text-blue-700 hover:text-blue-900 font-medium flex items-center gap-1 text-xs"
-            >
-              <Keyboard className="w-3.5 h-3.5" />
-              <span>{showKeyboardMap ? 'Hide DevLys Map' : 'DevLys 010 Map'}</span>
-            </button>
+
+          <div className="font-mono text-[11px] text-blue-800">
+            Passage: <strong>{passageTitle}</strong> (~{targetWords.length} words)
           </div>
         </div>
 
-        {/* Top Text Passage Box matching Screenshot 3 & Page 5 */}
-        <div
-          className="border-2 border-slate-400 rounded-sm p-5 bg-slate-50 h-56 md:h-64 overflow-y-auto text-lg md:text-xl leading-relaxed text-slate-800 font-serif tracking-normal shadow-inner"
-          style={{ lineHeight: '2.0' }}
-        >
-          {targetWords.map((word, index) => {
-            let statusClass = 'text-slate-800';
-            const isCurrent = index === currentWordIndex;
+        {/* Target Passage Reading Canvas matching Official Exam Display */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <span>मूल गद्यांश (Original Passage to Type) :</span>
+            </label>
+            <span className="text-[11px] font-mono text-slate-500">
+              Active Word Index: {currentWordIndex + 1} / {targetWords.length}
+            </span>
+          </div>
 
-            if (index < typedWords.length) {
-              const isMatch = typedWords[index] === word;
-              statusClass = isMatch
-                ? 'bg-emerald-100 text-emerald-950 font-medium px-1 rounded-xs'
-                : 'bg-red-100 text-red-950 line-through px-1 rounded-xs decoration-red-700';
-            } else if (isCurrent) {
-              statusClass =
-                'bg-blue-200 text-blue-950 font-bold px-1.5 py-0.5 rounded ring-2 ring-blue-600 shadow-xs';
-            }
+          <div className="p-6 bg-slate-50 border-2 border-slate-300 rounded-sm max-h-56 overflow-y-auto leading-loose text-lg font-serif text-slate-800 select-none shadow-inner">
+            <p className="flex flex-wrap gap-x-2 gap-y-1">
+              {targetWords.map((word, idx) => {
+                const isTyped = idx < currentWordIndex;
+                const isActive = idx === currentWordIndex;
 
-            return (
-              <span
-                key={index}
-                ref={isCurrent ? activeWordRef : null}
-                className={`inline-block mr-2 my-0.5 transition-colors ${statusClass}`}
-              >
-                {word}
-              </span>
-            );
-          })}
+                let wordStyle = 'text-slate-800';
+                if (isTyped) {
+                  wordStyle = 'text-slate-400 line-through decoration-slate-300';
+                } else if (isActive) {
+                  wordStyle =
+                    'text-blue-950 font-bold bg-amber-200 px-1 rounded ring-2 ring-blue-600 shadow-xs';
+                }
+
+                return (
+                  <span
+                    key={idx}
+                    ref={isActive ? activeWordRef : null}
+                    className={`transition-colors duration-150 inline-block ${wordStyle}`}
+                  >
+                    {word}
+                  </span>
+                );
+              })}
+            </p>
+          </div>
         </div>
 
-        {/* Live Metrics and RSSB Rule 10 Notification Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-50 border border-slate-300 rounded px-3 py-2">
+        {/* Live Typing Statistics Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-medium border-y border-slate-200 py-2.5 px-2 bg-slate-50/50">
           <div className="flex items-center gap-4">
             <span className="text-slate-700">
               Type Progress:{' '}
@@ -398,10 +458,42 @@ export const SpeedTestRunner: React.FC<SpeedTestRunnerProps> = ({
               </div>
             )}
           </div>
-          <div className="text-[11px] text-slate-500 flex items-center justify-between">
+
+          {/* Quick Ligature & Alt-Code Helper Bar for Hindi Typing Test */}
+          {paperType === 'hindi_speed' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-slate-700 flex items-center gap-1">
+                  <Zap className="w-3.5 h-3.5 text-amber-600" />
+                  <span>क्विक लिगेचर्स / ऑल्ट कोड (Click to insert or type Alt+Code):</span>
+                </span>
+                <span className="text-slate-500 font-mono text-[10px]">
+                  DevLys 010 (Remington GAIL)
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {ALT_CODES_REFERENCE.slice(0, 12).map((ref) => (
+                  <button
+                    key={ref.code}
+                    type="button"
+                    onClick={() => handleInsertLigature(ref.char, ref.code)}
+                    title={`${ref.code}: ${ref.description}`}
+                    className="px-2.5 py-1 bg-white border border-slate-300 hover:border-blue-500 hover:bg-blue-50 rounded text-xs font-serif text-slate-800 transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="font-bold text-sm text-blue-950">{ref.char}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {ref.code.replace('Alt+', '')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
             <span>
               {paperType === 'hindi_speed'
-                ? 'कीबोर्ड: DevLys 010 (Remington GAIL) स्वचालित मैपिंग सक्रिय'
+                ? 'कीबोर्ड: DevLys 010 (Remington GAIL) मानक मैपिंग व ऑल्ट कोड सक्रिय'
                 : 'Keyboard: Standard US QWERTY layout'}
             </span>
             <span className="text-slate-400">

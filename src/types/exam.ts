@@ -101,6 +101,7 @@ export interface DocumentParagraphStyle {
   indentLeft: number;
   subscript?: boolean;
   superscript?: boolean;
+  highlightedWords?: string[]; // Specifically for word-level highlighting tasks (e.g. Q.5)
 }
 
 export interface DocumentTableStyle {
